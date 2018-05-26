@@ -1,3 +1,8 @@
+use std::rc::Rc;
+use std::cell::RefCell;
+
+use super::mmu::MemoryInterface;
+
 pub struct Clock {
   pub m: u32,
   pub t: u32,
@@ -29,10 +34,12 @@ pub struct Registers {
 pub struct CPU {
   pub clock: Clock,
   pub registers: Registers,
+
+  memory_interface: Rc<RefCell<MemoryInterface>>,
 }
 
 impl CPU {
-  pub fn new() -> CPU {
+  pub fn new(memory_interface: Rc<RefCell<MemoryInterface>>) -> CPU {
     let clock = Clock {
       m: 0, t: 0,
     };
@@ -46,7 +53,7 @@ impl CPU {
       last_clock: Clock { m: 0, t: 0 },
     };
 
-    CPU { clock, registers }
+    CPU { clock, registers, memory_interface }
   }
 
   // Operations
