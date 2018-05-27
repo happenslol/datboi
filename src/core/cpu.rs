@@ -424,8 +424,40 @@ impl CPU {
     self.set_last_clock(3);
   }
 
+  // add n to HL
+  pub fn add_hlm_n(&mut self, src: WordRegister) {
+    let a = self.registers.read_word(WordRegister::HL);
+    let b = self.registers.read_word(src);
+    let result = (a as u32) + (b as u32);
+
+    self.registers.unset_sub_flag();
+    if check_carry_add16(a, b) { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+    if check_half_carry_add16(a, b) {self.registers.set_half_carry_flag(); }
+    else { self.registers.unset_half_carry_flag(); }
+
+    self.registers.write_word(WordRegister::HL, result as u16);
+    self.set_last_clock(2);
+  }
+
+  // TODO: ADD SP,n
+
+  // increase nn
+  pub fn inc_nn(&mut self, dst: WordRegister) {
+    let result = self.registers.read_word(dst) + 1;
+    self.registers.write_word(dst, result);
+    self.set_last_clock(2);
+  }
+
+  // decrease nn
+  pub fn dec_nn(&mut self, dst: WordRegister) {
+    let result = self.registers.read_word(dst) - 1;
+    self.registers.write_word(dst, result);
+    self.set_last_clock(2);
+  }
+
   // ------------------------------------
-  // Others
+  // Miscellaneous
   // ------------------------------------
 
   pub fn nop(&mut self) {
@@ -463,3 +495,9 @@ fn check_half_carry_add8(a: u8, b: u8) -> bool {
 fn check_half_carry_sub8(a: u8, b: u8) -> bool {
   ((((a as i16) & 0xF) - ((b as i16) & 0xF)) < 0)  
 }
+
+// TODO
+fn check_carry_add16(a: u16, b: u16) -> bool { true }
+
+// TODO
+fn check_half_carry_add16(a: u16, b: u16) -> bool { true }
