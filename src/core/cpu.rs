@@ -30,233 +30,132 @@ impl CPU {
   }
 
   // ------------------------------------
-  // NEW INSTRUCTIONS
-  // ------------------------------------
-
-  // ------------------------------------
   // 8-bit loads
   // ------------------------------------
 
-  // Put nn into n
-  pub fn ld_nn_n(&mut self) {
-  }
-
-  // ------------------------------------
-  // Data processing instructions
-  // ------------------------------------
-
-  // adds register src to A and saves the result in A
-  pub fn add(&mut self, src: ByteRegister) {
-    let result = (self.registers[ByteRegister::A] as u16) +
-                 (self.registers[src] as u16);
-
-    self.set_add_flags(result);
-
-    // this truncates to 8 bit automatically
-    self.registers[ByteRegister::A] = result as u8;
-
-    self.set_last_clock(1);
-  }
-
-  // add byte at memory location HL to A
-  pub fn add_hl(&mut self) {
-    let result = (self.registers[ByteRegister::A] as u16) +
-                 (self.read_hl() as u16);
-
-    self.set_add_flags(result);
-    self.registers[ByteRegister::A] = result as u8;
-
-    self.set_last_clock(1);
-  }
-
-  // add byte at memory location PC to A
-  pub fn add_n(&mut self) {
-    let result = (self.registers[ByteRegister::A] as u16) +
-                 (self.read_pc() as u16);
-
-    self.registers.advance_pc(1);
-    self.set_add_flags(result);
-    self.registers[ByteRegister::A] = result as u8;
-
+  // Put n into nn
+  pub fn ld_nn_n(&mut self, dst: ByteRegister, n: u8) {
+    self.registers[dst] = n;
     self.set_last_clock(2);
   }
 
-  // adds word from word register to hl
-  pub fn add_hl_w(&mut self, src: WordRegister) {
-    let result = (self.registers.read_word(WordRegister::HL) as u32) +
-                 (self.registers.read_word(src) as u32);
-
-    if result > 65535 { self.registers.set_carry_flag(); }
-    else { self.registers.unset_carry_flag(); }
-
-    self.registers.write_word(WordRegister::HL, result as u16);
+  // Put value from src to dest
+  pub fn ld_r1_r2(&mut self, dst: ByteRegister, src: ByteRegister) {
+    self.registers[dst] = self.registers[src];
+    self.set_last_clock(1);
+  }
+  pub fn ld_r1_hlm(&mut self, dst: ByteRegister) {
+    self.registers[dst] = self.read_hl();
+    self.set_last_clock(2);
+  }
+  pub fn ld_hlm_r1(&mut self, src: ByteRegister) {
+    let byte = self.registers[src];
+    self.write_hl(byte);
+    self.set_last_clock(2);
+  }
+  pub fn ld_hlm_n(&mut self, value: u8) {
+    self.write_hl(value);
     self.set_last_clock(3);
   }
 
-  // add byte found at 
-  pub fn add_sp_n(&mut self) {
-
-  }
-
-  pub fn cp(&mut self) {
-    // TODO: Can this overflow if we use i8 instead of i16? I don't think so
-    let result = (self.registers[ByteRegister::A] as i8) -
-                 (self.registers[ByteRegister::B] as i8);
-
-    self.registers.set_sub_flag();
-
-    // check for 0
-    if ((result as u8) | 255) == 0 { self.registers.set_zero_flag(); }
-
-    // check for underflow
-    if result < 0 { self.registers.set_carry_flag(); }
-
+  // Put value from n into A
+  pub fn ld_a_r1(&mut self, src: ByteRegister) {
+    self.registers[ByteRegister::A] = self.registers[src];
     self.set_last_clock(1);
   }
-
-  // ------------------------------------
-  // Memory handling instructions
-  // ------------------------------------
-
-  // copy byte from register to register
-  pub fn ld_rr(&mut self, src: ByteRegister, dst: ByteRegister) {
-    self.registers[src] = self.registers[dst];
-    self.set_last_clock(1);
-  }
-
-  // copy byte from location HL to register
-  pub fn ld_r_hlm(&mut self, dst: ByteRegister) {
-    let pointer = self.registers.read_word(WordRegister::HL);
-    self.registers[dst] = self.memory_interface.borrow().read_byte(pointer);
+  pub fn ld_a_m(&mut self, src: WordRegister) {
+    let pointer = self.registers.read_word(src);
+    let byte = self.memory_interface.borrow_mut().read_byte(pointer);
+    self.registers[ByteRegister::A] = byte;
     self.set_last_clock(2);
   }
-
-  // write byte from register to location HL
-  pub fn ld_hlm_r(&mut self, src: ByteRegister) {
-    let pointer = self.registers.read_word(WordRegister::HL);
-    self.memory_interface.borrow_mut().write_byte(pointer, self.registers[src]);
-    self.set_last_clock(2);
-  }
-
-  // read byte from program to register
-  pub fn ld_r_n(&mut self, dst: ByteRegister) {
-    self.registers[dst] = self.memory_interface
-      .borrow().read_byte(self.registers.read_word(WordRegister::PC));
-
-    self.registers.advance_pc(1);
-    self.set_last_clock(2);
-  }
-
-  // write byte from program to location HL
-  pub fn ld_hlm_n(&mut self) {
-    let pointer = self.registers.read_word(WordRegister::HL);
-
-    let byte = self.memory_interface.borrow()
-      .read_byte(self.registers.read_word(WordRegister::PC));
-
-    self.memory_interface.borrow_mut().write_byte(pointer, byte);
-    self.registers.advance_pc(1);
-    self.set_last_clock(3);
-  }
-
-  // write byte to location BC from register a
-  pub fn ld_bcm_a(&mut self) {
-    let pointer = self.registers.read_word(WordRegister::BC);
-    let byte = self.registers[ByteRegister::A];
-
-    self.memory_interface.borrow_mut().write_byte(pointer, byte);
-    self.set_last_clock(2);
-  }
-
-  // write byte to location DE from register a
-  pub fn ld_dem_a(&mut self) {
-    let pointer = self.registers.read_word(WordRegister::DE);
-    let byte = self.registers[ByteRegister::A];
-
-    self.memory_interface.borrow_mut().write_byte(pointer, byte);
-    self.set_last_clock(2);
-  }
-
-  // write byte to location found at current program counter
-  // from register a (advances pc by 2)
-  pub fn ld_mm_a(&mut self) {
-    let pc = self.registers.read_word(WordRegister::PC);
-    let pointer = self.memory_interface.borrow().read_word(pc);
-    let byte = self.registers[ByteRegister::A];
-
-    self.memory_interface.borrow_mut().write_byte(pointer, byte);
-
-    // TODO: Make this nicer
-    self.registers.advance_pc(2);
-
+  pub fn ld_a_nn(&mut self, src: u16) {
+    let byte = self.memory_interface.borrow_mut().read_byte(src);
+    self.registers[ByteRegister::A] = byte;
     self.set_last_clock(4);
   }
 
-  // load byte to register a from location BC
-  pub fn ld_a_bcm(&mut self) {
-    let pointer = self.registers.read_word(WordRegister::BC);
-    self.registers[ByteRegister::A] = self.memory_interface.borrow().read_byte(pointer);
+  // Put value from A into n
+  pub fn ld_r1_a(&mut self, dst: ByteRegister) {
+    self.registers[dst] = self.registers[ByteRegister::A];
+    self.set_last_clock(1);
+  }
+  pub fn ld_m_a(&mut self, dst: WordRegister) {
+    let pointer = self.registers.read_word(dst);
+    let byte = self.registers[ByteRegister::A];
+    self.memory_interface.borrow_mut().write_byte(pointer, byte);
     self.set_last_clock(2);
   }
-
-  // load byte to register a from location DE
-  pub fn ld_a_dem(&mut self) {
-    let pointer = self.registers.read_word(WordRegister::DE);
-    self.registers[ByteRegister::A] = self.memory_interface.borrow().read_byte(pointer);
-    self.set_last_clock(2);
-  }
-
-  // load byte from location found at current program counter
-  // into register a (advances pc by 2)
-  pub fn ld_a_mm(&mut self) {
-    let pc = self.registers.read_word(WordRegister::PC);
-    let pointer = self.memory_interface.borrow().read_word(pc);
-    self.registers[ByteRegister::A] = self.memory_interface.borrow().read_byte(pointer);
-
-    self.registers.advance_pc(2);
-
+  pub fn ld_nn_a(&mut self, dst: u16) {
+    let byte = self.registers[ByteRegister::A];
+    self.memory_interface.borrow_mut().write_byte(dst, byte);
     self.set_last_clock(4);
   }
 
-  // load word from memory into word registers (except PC)
-  pub fn ld_r_nn(&mut self, reg: WordRegister) {
-    // TODO: Does this actually need to be caught?
-    if reg == WordRegister::PC { panic!("can't ld_r_nn into PC location"); }
+  // Put value at address 0xFF00 + C into A
+  pub fn ld_a_cm(&mut self) {
+    let pointer = 0xFF00 + (self.registers[ByteRegister::C] as u16);
+    self.registers[ByteRegister::A] = self.memory_interface.borrow().read_byte(pointer);
+    self.set_last_clock(2);
+  }
 
-    // TODO: Does this happen in the correct order?
-    let pc = self.registers.read_word(WordRegister::PC);
-    let word = self.memory_interface.borrow().read_word(pc);
-    self.registers.write_word(reg, word);
+  // Put value at A into 0xFF00 + C
+  pub fn ld_cm_a(&mut self) {
+    let byte = self.registers[ByteRegister::A];
+    let pointer = 0xFF00 + (self.registers[ByteRegister::C] as u16);
+    self.memory_interface.borrow_mut().write_byte(pointer, byte);
+    self.set_last_clock(2);
+  }
 
-    self.registers.advance_pc(2);
+  // Put value from HL into A and decrement HL
+  pub fn ldd_a_hlm(&mut self) {
+    let pointer = self.registers.read_word(WordRegister::HL);
+    self.registers.write_word(WordRegister::HL, pointer - 1);
+    self.registers[ByteRegister::A] = self.memory_interface.borrow().read_byte(pointer);
+    self.set_last_clock(2);
+  }
 
+  // Put value from A into HL and decrement HL
+  pub fn ldd_hlm_a(&mut self) {
+    let pointer = self.registers.read_word(WordRegister::HL);
+    let byte = self.registers[ByteRegister::A];
+    self.write_hl(byte);
+
+    self.registers.write_word(WordRegister::HL, pointer - 1);
+    self.set_last_clock(2);
+  }
+
+  // Put value from HL into A and increment HL
+  pub fn ldi_a_hlm(&mut self) {
+    let pointer = self.registers.read_word(WordRegister::HL);
+    self.registers.write_word(WordRegister::HL, pointer + 1);
+    self.registers[ByteRegister::A] = self.memory_interface.borrow().read_byte(pointer);
+    self.set_last_clock(2);
+  }
+
+  // Put value from A into HL and increment HL
+  pub fn ldi_hlm_a(&mut self) {
+    let pointer = self.registers.read_word(WordRegister::HL);
+    let byte = self.registers[ByteRegister::A];
+    self.write_hl(byte);
+
+    self.registers.write_word(WordRegister::HL, pointer + 1);
+    self.set_last_clock(2);
+  }
+
+  // Put value at address 0xFF00 + n into A
+  pub fn ldh_a_nm(&mut self, n: u8) {
+    let pointer = 0xFF00 + (n as u16);
+    self.registers[ByteRegister::A] = self.memory_interface.borrow().read_byte(pointer);
     self.set_last_clock(3);
   }
 
-  // load word from location found at current program counter
-  // into register HL
-  pub fn ld_hlm_m(&mut self) {
-    let pc = self.registers.read_word(WordRegister::PC);
-    self.registers.advance_pc(2);
-
-    let pointer = self.memory_interface.borrow().read_word(pc);
-    let word = self.memory_interface.borrow().read_word(pointer);
-    self.registers.write_word(WordRegister::HL, word);
-
-    self.set_last_clock(5);
-  }
-
-  // write word to location found at current program counter
-  // from register HL
-  pub fn ld_m_hlm(&mut self) {
-    let pc = self.registers.read_word(WordRegister::PC);
-    self.registers.advance_pc(2);
-
-    let pointer = self.memory_interface.borrow().read_word(pc);
-    let word = self.registers.read_word(WordRegister::HL);
-
-    self.memory_interface.borrow_mut().write_word(pointer, word);
-    self.set_last_clock(5);
+  // Put value at A into 0xFF00 + n
+  pub fn ldh_nm_a(&mut self, n: u8) {
+    let byte = self.registers[ByteRegister::A];
+    let pointer = 0xFF00 + (n as u16);
+    self.memory_interface.borrow_mut().write_byte(pointer, byte);
+    self.set_last_clock(3);
   }
 
   pub fn nop(&mut self) {
@@ -274,6 +173,11 @@ impl CPU {
   fn read_hl(&self) -> u8 {
     let pointer = self.registers.read_word(WordRegister::HL);
     self.memory_interface.borrow().read_byte(pointer)
+  }
+
+  fn write_hl(&mut self, byte: u8) {
+    let pointer = self.registers.read_word(WordRegister::HL);
+    self.memory_interface.borrow_mut().write_byte(pointer, byte);
   }
 
   fn read_pc(&self) -> u8 {
