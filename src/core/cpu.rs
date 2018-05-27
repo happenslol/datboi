@@ -29,29 +29,73 @@ impl CPU {
     CPU { clock, registers, memory_interface, last_clock }
   }
 
-  // Instructions
-  pub fn nop(&mut self) {
-    // takes 1 M-Time
-    self.set_last_clock(1);
+  // ------------------------------------
+  // NEW INSTRUCTIONS
+  // ------------------------------------
+
+  // ------------------------------------
+  // 8-bit loads
+  // ------------------------------------
+
+  // Put nn into n
+  pub fn ld_nn_n(&mut self) {
   }
 
-  pub fn add(&mut self) {
+  // ------------------------------------
+  // Data processing instructions
+  // ------------------------------------
+
+  // adds register src to A and saves the result in A
+  pub fn add(&mut self, src: ByteRegister) {
     let result = (self.registers[ByteRegister::A] as u16) +
-                 (self.registers[ByteRegister::E] as u16);
+                 (self.registers[src] as u16);
 
-    self.registers.clear_flags();
-
-    // check for 0
-    if ((result as u8) | 255) == 0 { self.registers.set_zero_flag(); }
-
-    // check for carry
-    if result > 255 { self.registers.set_carry_flag(); }
+    self.set_add_flags(result);
 
     // this truncates to 8 bit automatically
     self.registers[ByteRegister::A] = result as u8;
 
-    // takes 1 M-Time
     self.set_last_clock(1);
+  }
+
+  // add byte at memory location HL to A
+  pub fn add_hl(&mut self) {
+    let result = (self.registers[ByteRegister::A] as u16) +
+                 (self.read_hl() as u16);
+
+    self.set_add_flags(result);
+    self.registers[ByteRegister::A] = result as u8;
+
+    self.set_last_clock(1);
+  }
+
+  // add byte at memory location PC to A
+  pub fn add_n(&mut self) {
+    let result = (self.registers[ByteRegister::A] as u16) +
+                 (self.read_pc() as u16);
+
+    self.registers.advance_pc(1);
+    self.set_add_flags(result);
+    self.registers[ByteRegister::A] = result as u8;
+
+    self.set_last_clock(2);
+  }
+
+  // adds word from word register to hl
+  pub fn add_hl_w(&mut self, src: WordRegister) {
+    let result = (self.registers.read_word(WordRegister::HL) as u32) +
+                 (self.registers.read_word(src) as u32);
+
+    if result > 65535 { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+
+    self.registers.write_word(WordRegister::HL, result as u16);
+    self.set_last_clock(3);
+  }
+
+  // add byte found at 
+  pub fn add_sp_n(&mut self) {
+
   }
 
   pub fn cp(&mut self) {
@@ -67,7 +111,6 @@ impl CPU {
     // check for underflow
     if result < 0 { self.registers.set_carry_flag(); }
 
-    // takes 1 M-Time
     self.set_last_clock(1);
   }
 
@@ -177,6 +220,7 @@ impl CPU {
 
   // load word from memory into word registers (except PC)
   pub fn ld_r_nn(&mut self, reg: WordRegister) {
+    // TODO: Does this actually need to be caught?
     if reg == WordRegister::PC { panic!("can't ld_r_nn into PC location"); }
 
     // TODO: Does this happen in the correct order?
@@ -215,9 +259,35 @@ impl CPU {
     self.set_last_clock(5);
   }
 
+  pub fn nop(&mut self) {
+    self.set_last_clock(1);
+  }
+
   // takes M-Time as input
   fn set_last_clock(&mut self, m_time: u32) {
     self.last_clock.m = m_time;
     self.last_clock.t = m_time * 4;
+  }
+
+  // helpers
+  // TODO: Check which of these should be inlined for performance
+  fn read_hl(&self) -> u8 {
+    let pointer = self.registers.read_word(WordRegister::HL);
+    self.memory_interface.borrow().read_byte(pointer)
+  }
+
+  fn read_pc(&self) -> u8 {
+    let pointer = self.registers.read_word(WordRegister::PC);
+    self.memory_interface.borrow().read_byte(pointer)
+  }
+
+  fn set_add_flags(&mut self, result: u16) {
+    self.registers.clear_flags();
+
+    // check for 0
+    if ((result as u8) | 255) == 0 { self.registers.set_zero_flag(); }
+
+    // check for carry
+    if result > 255 { self.registers.set_carry_flag(); }
   }
 }
