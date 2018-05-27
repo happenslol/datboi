@@ -203,6 +203,228 @@ impl CPU {
   }
 
   // ------------------------------------
+  // 8-bit ALU
+  // ------------------------------------
+
+  // Add n to A
+  pub fn add_n(&mut self, src: ByteRegister) {
+    let result = (self.registers[ByteRegister::A] as u16) +
+      (self.registers[src] as u16);
+
+    self.registers.clear_flags();
+    if result == 0 { self.registers.set_zero_flag(); }
+    if result > 255 { self.registers.set_carry_flag(); }
+    if (check_half_carry_add8(self.registers[ByteRegister::A], self.registers[src])) {
+      self.registers.set_half_carry_flag();
+    }
+
+    self.registers[ByteRegister::A] = result as u8;
+    self.set_last_clock(1);
+  }
+  pub fn add_hlm(&mut self) {
+    let result = (self.registers[ByteRegister::A] as u16) +
+      (self.read_hl() as u16);
+
+    self.registers.clear_flags();
+    if result == 0 { self.registers.set_zero_flag(); }
+    if result > 255 { self.registers.set_carry_flag(); }
+    if (check_half_carry_add8(self.registers[ByteRegister::A], self.read_hl())) {
+      self.registers.set_half_carry_flag();
+    }
+
+    self.registers[ByteRegister::A] = result as u8;
+    self.set_last_clock(2);
+  }
+
+  // Sub n from A
+  pub fn sub_n(&mut self, src: ByteRegister) {
+    let result = (self.registers[ByteRegister::A] as i16) -
+      (self.registers[src] as i16);
+    
+    self.registers.clear_flags();
+    self.registers.set_sub_flag();
+    if result == 0 { self.registers.set_zero_flag(); }
+    if result < 0 { self.registers.set_carry_flag(); }
+    if (check_half_carry_sub8(self.registers[ByteRegister::A], self.registers[src])) {
+      self.registers.set_half_carry_flag();
+    }
+
+    self.registers[ByteRegister::A] = result as u8;
+    self.set_last_clock(1);
+  }
+  pub fn sub_hlm(&mut self) {
+    let result = (self.registers[ByteRegister::A] as i16) -
+      (self.read_hl() as i16);
+    
+    self.registers.clear_flags();
+    self.registers.set_sub_flag();
+    if result == 0 { self.registers.set_zero_flag(); }
+    if result < 0 { self.registers.set_carry_flag(); }
+    if (check_half_carry_sub8(self.registers[ByteRegister::A], self.read_hl())) {
+      self.registers.set_half_carry_flag();
+    }
+
+    self.registers[ByteRegister::A] = result as u8;
+    self.set_last_clock(2);
+  }
+
+  // TODO: SBC A,n
+
+  // AND n with a
+  pub fn and_n(&mut self, src: ByteRegister) {
+    let result = self.registers[ByteRegister::A] & self.registers[src];
+
+    self.registers.clear_flags();
+    if result == 0 { self.registers.set_zero_flag(); }
+    self.registers.set_half_carry_flag();
+
+    self.registers[ByteRegister::A] = result;
+    self.set_last_clock(1);
+  }
+  pub fn and_hlm(&mut self) {
+    let result = self.registers[ByteRegister::A] & self.read_hl();
+
+    self.registers.clear_flags();
+    if result == 0 { self.registers.set_zero_flag(); }
+    self.registers.set_half_carry_flag();
+
+    self.registers[ByteRegister::A] = result;
+    self.set_last_clock(2);
+  }
+
+  // OR n with a
+  pub fn or_n(&mut self, src: ByteRegister) {
+    let result = self.registers[ByteRegister::A] | self.registers[src];
+
+    self.registers.clear_flags();
+    if result == 0 { self.registers.set_zero_flag(); }
+
+    self.registers[ByteRegister::A] = result;
+    self.set_last_clock(1);
+  }
+  pub fn or_hlm(&mut self) {
+    let result = self.registers[ByteRegister::A] | self.read_hl();
+
+    self.registers.clear_flags();
+    if result == 0 { self.registers.set_zero_flag(); }
+
+    self.registers[ByteRegister::A] = result;
+    self.set_last_clock(2);
+  }
+
+  // XOR n with a
+  pub fn xor_n(&mut self, src: ByteRegister) {
+    let result = self.registers[ByteRegister::A] ^ self.registers[src];
+
+    self.registers.clear_flags();
+    if result == 0 { self.registers.set_zero_flag(); }
+
+    self.registers[ByteRegister::A] = result;
+    self.set_last_clock(1);
+  }
+  pub fn xor_hlm(&mut self) {
+    let result = self.registers[ByteRegister::A] ^ self.read_hl();
+
+    self.registers.clear_flags();
+    if result == 0 { self.registers.set_zero_flag(); }
+
+    self.registers[ByteRegister::A] = result;
+    self.set_last_clock(2);
+  }
+
+  // cp n with A
+  pub fn cp_r1(&mut self, src: ByteRegister) {
+    let result = (self.registers[ByteRegister::A] as i16) - (self.registers[src] as i16);
+    
+    self.registers.clear_flags();
+    self.registers.set_sub_flag();
+    if result == 0 { self.registers.set_zero_flag(); }
+    if result < 0 { self.registers.set_carry_flag(); }
+    if (check_half_carry_sub8(self.registers[ByteRegister::A], self.registers[src])) {
+      self.registers.set_half_carry_flag();
+    }
+
+    self.set_last_clock(1);
+  }
+  pub fn cp_hlm(&mut self) {
+    let result = (self.registers[ByteRegister::A] as i16) - (self.read_hl() as i16);
+    
+    self.registers.clear_flags();
+    self.registers.set_sub_flag();
+    if result == 0 { self.registers.set_zero_flag(); }
+    if result < 0 { self.registers.set_carry_flag(); }
+    if (check_half_carry_sub8(self.registers[ByteRegister::A], self.read_hl())) {
+      self.registers.set_half_carry_flag();
+    }
+
+    self.set_last_clock(2);
+  }
+
+  // increase n by 1
+  pub fn inc_n(&mut self, dst: ByteRegister) {
+    let result = (self.registers[dst] as u16) + 1;
+
+    self.registers.unset_sub_flag();
+    if result == 0 { self.registers.set_zero_flag(); }
+    else { self.registers.unset_zero_flag(); }
+    if (check_half_carry_add8(self.registers[dst], 1)) {
+      self.registers.set_half_carry_flag();
+    } else {
+      self.registers.unset_half_carry_flag();
+    }
+
+    self.registers[dst] = result as u8;
+    self.set_last_clock(1);
+  }
+  pub fn inc_hlm(&mut self) {
+    let result = (self.read_hl() as u16) + 1;
+
+    self.registers.unset_sub_flag();
+    if result == 0 { self.registers.set_zero_flag(); }
+    else { self.registers.unset_zero_flag(); }
+    if (check_half_carry_add8(self.read_hl(), 1)) {
+      self.registers.set_half_carry_flag();
+    } else {
+      self.registers.unset_half_carry_flag();
+    }
+
+    self.write_hl(result as u8);
+    self.set_last_clock(3);
+  }
+
+  // decrease n by 1
+  pub fn dec_n(&mut self, dst: ByteRegister) {
+    let result = (self.registers[dst] as u16) - 1;
+
+    self.registers.unset_sub_flag();
+    if result == 0 { self.registers.set_zero_flag(); }
+    else { self.registers.unset_zero_flag(); }
+    if (check_half_carry_sub8(self.registers[dst], 1)) {
+      self.registers.set_half_carry_flag();
+    } else {
+      self.registers.unset_half_carry_flag();
+    }
+
+    self.registers[dst] = result as u8;
+    self.set_last_clock(1);
+  }
+  pub fn dec_hlm(&mut self) {
+    let result = (self.read_hl() as u16) - 1;
+
+    self.registers.unset_sub_flag();
+    if result == 0 { self.registers.set_zero_flag(); }
+    else { self.registers.unset_zero_flag(); }
+    if (check_half_carry_sub8(self.read_hl(), 1)) {
+      self.registers.set_half_carry_flag();
+    } else {
+      self.registers.unset_half_carry_flag();
+    }
+
+    self.write_hl(result as u8);
+    self.set_last_clock(3);
+  }
+
+  // ------------------------------------
   // Others
   // ------------------------------------
 
@@ -232,14 +454,12 @@ impl CPU {
     let pointer = self.registers.read_word(WordRegister::PC);
     self.memory_interface.borrow().read_byte(pointer)
   }
+}
 
-  fn set_add_flags(&mut self, result: u16) {
-    self.registers.clear_flags();
+fn check_half_carry_add8(a: u8, b: u8) -> bool {
+  (((a & 0xF) + (b & 0xF)) & 0x10) == 0x10
+}
 
-    // check for 0
-    if ((result as u8) | 255) == 0 { self.registers.set_zero_flag(); }
-
-    // check for carry
-    if result > 255 { self.registers.set_carry_flag(); }
-  }
+fn check_half_carry_sub8(a: u8, b: u8) -> bool {
+  ((((a as i16) & 0xF) - ((b as i16) & 0xF)) < 0)  
 }
