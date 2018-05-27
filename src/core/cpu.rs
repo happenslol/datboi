@@ -460,9 +460,72 @@ impl CPU {
   // Miscellaneous
   // ------------------------------------
 
+  // swap upper and lower nibles of n
+  pub fn swap_n(&mut self, dst: ByteRegister) {
+    let result = (self.registers[dst] << 2) | (self.registers[dst] >> 2);
+    self.registers.clear_flags();
+    if result == 0 { self.registers.set_zero_flag(); }
+    self.registers[dst] = result;
+    self.set_last_clock(2);
+  }
+  pub fn swap_hlm(&mut self) {
+    let value = self.read_hl();
+    let result = (value << 2) | (value >> 2);
+    self.registers.clear_flags();
+    if result == 0 { self.registers.set_zero_flag(); }
+    self.write_hl(result);
+    self.set_last_clock(4);
+  }
+
+  // TODO: DAA
+
+  // complement a register (flip all bits)
+  pub fn cpl(&mut self) {
+    let result = !self.registers[ByteRegister::A];
+    self.registers.set_sub_flag();
+    self.registers.set_half_carry_flag();
+    self.registers[ByteRegister::A] = result;
+    self.set_last_clock(1);
+  }
+
+  // complement carry flag
+  pub fn ccf(&mut self) {
+    self.registers.complement_carry_flag();
+    self.registers.unset_sub_flag();
+    self.registers.unset_half_carry_flag();
+    self.set_last_clock(1);
+  }
+
+  // set carry flag
+  pub fn scf(&mut self) {
+    self.registers.set_carry_flag();
+    self.registers.unset_sub_flag();
+    self.registers.unset_half_carry_flag();
+    self.set_last_clock(1);
+  }
+
+  // no op
   pub fn nop(&mut self) {
     self.set_last_clock(1);
   }
+
+  // stop cpu until interrupt
+  pub fn halt(&mut self) {
+    self.set_last_clock(1);
+  }
+
+  // stop cpu/screen until button pressed
+  pub fn stop(&mut self) {
+    self.set_last_clock(1);
+  }
+
+  // TODO: Disable/enable interrupts after next instruction
+  pub fn di(&mut self) {}
+  pub fn ei(&mut self) {}
+
+  // ------------------------------------
+  // Utility functions
+  // ------------------------------------
 
   // takes M-Time as input
   fn set_last_clock(&mut self, m_time: u32) {

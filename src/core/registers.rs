@@ -93,6 +93,8 @@ impl Registers {
   pub fn unset_carry_flag(&mut self) { self.f = self.f & 0xE0; }
   pub fn set_sub_flag(&mut self) { self.f = self.f | 0x40; }
   pub fn unset_sub_flag(&mut self) { self.f = self.f & 0xB0; }
+
+  pub fn complement_carry_flag(&mut self) { self.f = self.f ^ 0x10; }
 }
 
 impl Index<ByteRegister> for Registers {
