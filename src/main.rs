@@ -4,10 +4,10 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 
-mod cpu;
+mod core;
 mod mmu;
 
-use cpu::CPU;
+use core::cpu::CPU;
 use mmu::Memory;
 
 fn main() {
