@@ -158,6 +158,54 @@ impl CPU {
     self.set_last_clock(3);
   }
 
+  // ------------------------------------
+  // 16-bit loads
+  // ------------------------------------
+
+  // Put value nn into n
+  pub fn ld_n_nn(&mut self, dst: WordRegister, n: u16) {
+    self.registers.write_word(dst, n);
+    self.set_last_clock(3);
+  }
+
+  // Put hl into stack pointer
+  pub fn ld_sp_hl(&mut self) {
+    let word = self.registers.read_word(WordRegister::HL);
+    self.registers.write_word(WordRegister::SP, word);
+    self.set_last_clock(2);
+  }
+
+  // TODO: LD HL,SP+m
+
+  // Put stack pointer into address nn
+  pub fn ld_nnm_sp(&mut self, dst: u16) {
+    let word = self.registers.read_word(WordRegister::SP);
+    self.memory_interface.borrow_mut().write_word(dst, word);
+    self.set_last_clock(5);
+  }
+
+  // Push register pair nn onto stack, decrease SP twice
+  pub fn push_nn(&mut self, src: WordRegister) {
+    let sp = self.registers.read_word(WordRegister::SP);
+    let word = self.registers.read_word(src);
+    self.memory_interface.borrow_mut().write_word(sp, word);
+    self.registers.write_word(WordRegister::SP, sp - 2);
+    self.set_last_clock(4);
+  }
+
+  // Pop word off stack into register pair nn, increment SP twice
+  pub fn pop_nn(&mut self, dst: WordRegister) {
+    let sp = self.registers.read_word(WordRegister::SP);
+    let word = self.memory_interface.borrow().read_word(sp);
+    self.registers.write_word(dst, word);
+    self.registers.write_word(WordRegister::SP, sp + 2);
+    self.set_last_clock(3);
+  }
+
+  // ------------------------------------
+  // Others
+  // ------------------------------------
+
   pub fn nop(&mut self) {
     self.set_last_clock(1);
   }
