@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use super::registers::{Registers, ByteRegister, WordRegister};
+use super::registers::{Registers, ByteRegister, WordRegister, Flag};
 use super::super::mmu::MemoryInterface;
 
 pub struct Clock {
@@ -522,6 +522,102 @@ impl CPU {
   // TODO: Disable/enable interrupts after next instruction
   pub fn di(&mut self) {}
   pub fn ei(&mut self) {}
+
+  // ------------------------------------
+  // Rotates/Shifts
+  // ------------------------------------
+
+  // rotate A left
+  pub fn rlca(&mut self) {}
+
+  // rotate A left through carry
+  pub fn rla(&mut self) {}
+
+  // rotate A right
+  pub fn rrca(&mut self) {}
+
+  // rotate n left through carry
+  pub fn rlc_n(&mut self, n: ByteRegister) {}
+
+  // rotate n left through carry
+  pub fn rl_n(&mut self, n: ByteRegister) {}
+
+  // rotate n right through carry
+  pub fn rrc_n(&mut self, n: ByteRegister) {}
+
+  // rotate n right through carry
+  pub fn rr_n(&mut self, n: ByteRegister) {}
+
+  // shift n left into carry, lsb of n to 0
+  pub fn sla_n(&mut self, n: ByteRegister) {}
+
+  // shift n right into carry, keep msb of n
+  pub fn sra_n(&mut self, n: ByteRegister) {}
+
+  // shift n right into carry, msb of n to 0
+  pub fn srl_n(&mut self, n: ByteRegister) {}
+
+  // ------------------------------------
+  // Bit Operations
+  // ------------------------------------
+
+  // test bit b in register n
+  pub fn bit_b_n(&mut self, n: ByteRegister, b: u8) {}
+
+  // set bit b in register n
+  pub fn set_b_n(&mut self, n: ByteRegister, b: u8) {}
+
+  // reset bit b in register n
+  pub fn reset_set_b_n(&mut self, n: ByteRegister, b: u8) {}
+
+  // ------------------------------------
+  // Jumps
+  // ------------------------------------
+
+  // jump to address nn
+  pub fn jp_nn(&mut self, nn: u16) {}
+
+  // jump if flag
+  pub fn jp_nn_cc(&mut self, nn: u16, flag: Flag) {}
+
+  // jump to address in HL
+  pub fn jp_hl(&mut self) {}
+
+  // add n to current address and jump to it
+  pub fn jr_n(&mut self, n: u8) {}
+
+  // add n to current address and jump to it if flag
+  pub fn jr_cc_n(&mut self, flag: Flag, n: u8) {}
+
+  // ------------------------------------
+  // Jumps
+  // ------------------------------------
+
+  // push address of next instruction onto stack and jump to nn
+  pub fn call_nn(&mut self, nn: u16) {}
+
+  // call if flag
+  pub fn call_cc_nn(&mut self, flag: Flag, nn: u16) {}
+
+  // ------------------------------------
+  // Restarts
+  // ------------------------------------
+
+  // push current address and jump to 0x0 + n
+  pub fn rst_n(&mut self, n: u8) {}
+
+  // ------------------------------------
+  // Returns
+  // ------------------------------------
+
+  // pop two bytes and jump to address
+  pub fn ret(&mut self) {}
+
+  // return if flag
+  pub fn ret_cc(&mut self, flag: Flag) {}
+
+  // return and enable interrupts
+  pub fn reti(&mut self) {}
 
   // ------------------------------------
   // Utility functions

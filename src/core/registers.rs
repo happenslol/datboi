@@ -14,6 +14,13 @@ pub enum WordRegister {
   PC, SP,
 }
 
+pub enum Flag {
+  Carry,
+  HalfCarry,
+  Zero,
+  Sub,
+}
+
 pub struct Registers {
   // 8 bit registers
   a: u8,
