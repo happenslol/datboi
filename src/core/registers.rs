@@ -103,6 +103,15 @@ impl Registers {
   pub fn unset_sub_flag(&mut self) { self.f = self.f & 0xB0; }
 
   pub fn complement_carry_flag(&mut self) { self.f = self.f ^ 0x10; }
+
+  pub fn get_flag(&self, flag: Flag) -> bool {
+    match flag {
+      Flag::Zero => ((self.f & 0x80) >> 7) != 0,
+      Flag::Sub => ((self.f & 0x40) >> 6) != 0,
+      Flag::HalfCarry => ((self.f & 0x20) >> 5) != 0,
+      Flag::Carry => ((self.f & 0x10) >> 4) != 0,
+    }
+  }
 }
 
 impl Index<ByteRegister> for Registers {

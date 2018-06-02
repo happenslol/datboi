@@ -523,13 +523,13 @@ impl CPU {
   pub fn rlca(&mut self) {
     let a = self.registers[ByteRegister::A];
 
-    let last_bit = a >> 7;
-    let result = (a << 1) | last_bit;
+    let msb = a >> 7;
+    let result = (a << 1) | msb;
 
     self.registers[ByteRegister::A] = result;
 
     self.registers.clear_flags();
-    if last_bit != 0 { self.registers.set_carry_flag(); }
+    if msb != 0 { self.registers.set_carry_flag(); }
     else { self.registers.unset_carry_flag(); }
   }
 
@@ -552,12 +552,12 @@ impl CPU {
   pub fn rrca(&mut self) {
     let a = self.registers[ByteRegister::A];
 
-    let first_bit = a & 1;
+    let lsb = a & 1;
 
-    self.registers[ByteRegister::A] = (a >> 1) | (first_bit << 7);
+    self.registers[ByteRegister::A] = (a >> 1) | (lsb << 7);
 
     self.registers.clear_flags();
-    if first_bit != 0 { self.registers.set_carry_flag(); }
+    if lsb != 0 { self.registers.set_carry_flag(); }
     else { self.registers.unset_carry_flag(); }
   }
 
@@ -580,13 +580,13 @@ impl CPU {
   pub fn rlc_n(&mut self, n: ByteRegister) {
     let a = self.registers[n];
 
-    let last_bit = a >> 7;
-    let result = (a << 1) | last_bit;
+    let msb = a >> 7;
+    let result = (a << 1) | msb;
 
     self.registers[n] = result;
 
     self.registers.clear_flags();
-    if last_bit != 0 { self.registers.set_carry_flag(); }
+    if msb != 0 { self.registers.set_carry_flag(); }
     else { self.registers.unset_carry_flag(); }
   }
 
@@ -609,12 +609,12 @@ impl CPU {
   pub fn rrc_n(&mut self, n: ByteRegister) {
     let a = self.registers[n];
 
-    let first_bit = a & 1;
+    let lsb = a & 1;
 
-    self.registers[n] = (a >> 1) | (first_bit << 7);
+    self.registers[n] = (a >> 1) | (lsb << 7);
 
     self.registers.clear_flags();
-    if first_bit != 0 { self.registers.set_carry_flag(); }
+    if lsb != 0 { self.registers.set_carry_flag(); }
     else { self.registers.unset_carry_flag(); }
   }
 
@@ -624,7 +624,7 @@ impl CPU {
 
     let new_carry = (a & 1) != 0;
     // TODO: Check if this is correct
-    let old_carry = (self.registers.f & 0x10) >> 4;
+    let old_carry = self.registers.get_flag(Flag::Carry) as u8;
 
     self.registers[n] = (a >> 1) | (old_carry << 7);
 
@@ -636,9 +636,9 @@ impl CPU {
   // shift n left into carry, lsb of n to 0
   pub fn sla_n(&mut self, n: ByteRegister) {
     let value = self.registers[n];
-    let last_bit = value >> 7;
+    let msb = value >> 7;
 
-    if last_bit != 0 { self.registers.set_carry_flag(); }
+    if msb != 0 { self.registers.set_carry_flag(); }
     else { self.registers.unset_carry_flag(); }
 
     self.registers[n] = (value << 1) & 0xFE;
@@ -646,9 +646,9 @@ impl CPU {
   }
   pub fn sla_hlm(&mut self) {
     let value = self.read_hl();
-    let last_bit = value >> 7;
+    let msb = value >> 7;
 
-    if last_bit != 0 { self.registers.set_carry_flag(); }
+    if msb != 0 { self.registers.set_carry_flag(); }
     else { self.registers.unset_carry_flag(); }
 
     self.write_hl((value << 1) & 0xFE);
@@ -658,33 +658,33 @@ impl CPU {
   // shift n right into carry, keep msb of n
   pub fn sra_n(&mut self, n: ByteRegister) {
     let value = self.registers[n];
-    let last_bit = value >> 7;
-    let first_bit = value & 1;
+    let msb = value >> 7;
+    let lsb = value & 1;
 
-    if first_bit != 0 { self.registers.set_carry_flag(); }
+    if lsb != 0 { self.registers.set_carry_flag(); }
     else { self.registers.unset_carry_flag(); }
 
-    self.registers[n] = (value << 1) | (last_bit << 7);
+    self.registers[n] = (value << 1) | (msb << 7);
     self.set_last_clock(2);
   }
   pub fn sra_hlm(&mut self) {
     let value = self.read_hl();
-    let last_bit = value >> 7;
-    let first_bit = value & 1;
+    let msb = value >> 7;
+    let lsb = value & 1;
 
-    if first_bit != 0 { self.registers.set_carry_flag(); }
+    if lsb != 0 { self.registers.set_carry_flag(); }
     else { self.registers.unset_carry_flag(); }
 
-    self.write_hl((value << 1) | (last_bit << 7));
+    self.write_hl((value << 1) | (msb << 7));
     self.set_last_clock(4);
   }
 
   // shift n right into carry, msb of n to 0
   pub fn srl_n(&mut self, n: ByteRegister) {
     let value = self.registers[n];
-    let first_bit = value & 1;
+    let lsb = value & 1;
 
-    if first_bit != 0 { self.registers.set_carry_flag(); }
+    if lsb != 0 { self.registers.set_carry_flag(); }
     else { self.registers.unset_carry_flag(); }
 
     self.registers[n] = value << 1;
@@ -692,9 +692,9 @@ impl CPU {
   }
   pub fn srl_hlm(&mut self) {
     let value = self.read_hl();
-    let first_bit = value & 1;
+    let lsb = value & 1;
 
-    if first_bit != 0 { self.registers.set_carry_flag(); }
+    if lsb != 0 { self.registers.set_carry_flag(); }
     else { self.registers.unset_carry_flag(); }
 
     self.write_hl(value << 1);
@@ -756,19 +756,75 @@ impl CPU {
   // ------------------------------------
 
   // jump to address nn
-  pub fn jp_nn(&mut self, nn: u16) {}
+  pub fn jp_nn(&mut self) {
+    let address = self.next_word();
+    self.registers.write_word(WordRegister::PC, address);
+    self.set_last_clock(3);
+  }
 
   // jump if flag
-  pub fn jp_nn_cc(&mut self, nn: u16, flag: Flag) {}
+  pub fn jp_nn_cc(&mut self, flag: Flag) {
+    if !self.registers.get_flag(flag) { return; }
+
+    // TODO: Is it correct that this doesn't take more cycles than jp_nn?!
+    let address = self.next_word();
+    self.registers.write_word(WordRegister::PC, address);
+    self.set_last_clock(3);
+  }
+
+  // jump if not flag
+  pub fn jp_nn_ncc(&mut self, flag: Flag) {
+    if self.registers.get_flag(flag) { return; }
+
+    // TODO: Is it correct that this doesn't take more cycles than jp_nn?!
+    let address = self.next_word();
+    self.registers.write_word(WordRegister::PC, address);
+    self.set_last_clock(3);
+  }
 
   // jump to address in HL
-  pub fn jp_hl(&mut self) {}
+  pub fn jp_hl(&mut self) {
+    let address = self.registers.read_word(WordRegister::HL);
+    self.registers.write_word(WordRegister::PC, address);
+    self.set_last_clock(1);
+  }
 
-  // add n to current address and jump to it
-  pub fn jr_n(&mut self, n: u8) {}
+  // add n to current address and jump to it (relative jump)
+  pub fn jr_n(&mut self) {
+    let offset = self.next_byte() as u16;
+    let address = self.registers
+      .read_word(WordRegister::PC)
+      .wrapping_add(offset);
+
+    self.registers.write_word(WordRegister::PC, address);
+    self.set_last_clock(2);
+  }
 
   // add n to current address and jump to it if flag
-  pub fn jr_cc_n(&mut self, flag: Flag, n: u8) {}
+  pub fn jr_cc_n(&mut self, flag: Flag) {
+    if !self.registers.get_flag(flag) { return; }
+
+    let offset = self.next_byte() as u16;
+    let address = self.registers
+      .read_word(WordRegister::PC)
+      .wrapping_add(offset);
+
+    self.registers.write_word(WordRegister::PC, address);
+    self.set_last_clock(2);
+  }
+
+  // add n to current address and jump to it if not flag
+  pub fn jr_ncc_n(&mut self, flag: Flag) {
+    if self.registers.get_flag(flag) { return; }
+
+    let offset = self.next_byte() as u16;
+    let address = self.registers
+      .read_word(WordRegister::PC)
+      .wrapping_add(offset);
+
+    self.registers.write_word(WordRegister::PC, address);
+    self.set_last_clock(2);
+  }
 
   // ------------------------------------
   // Jumps
@@ -856,6 +912,22 @@ impl CPU {
   fn set_flags_add16(&mut self, operands: (u16, u16)) {}
 
   fn set_flags_sub16(&mut self, operands: (u16, u16)) {}
+
+  // get byte at pc and increment pc
+  fn next_byte(&mut self) -> u8 {
+    let pc = self.registers.read_word(WordRegister::PC);
+    let next_byte = self.read_pc();
+    self.registers.write_word(WordRegister::PC, pc.wrapping_add(1));
+
+    next_byte
+  }
+
+  fn next_word(&mut self) -> u16 {
+    let first = self.next_byte() as u16;
+    let second = self.next_byte() as u16;
+
+    first | (second << 8)
+  }
 }
 
 fn check_half_carry_add8(operands: (u8, u8)) -> bool {
