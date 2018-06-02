@@ -32,7 +32,8 @@ pub struct Registers {
   l: u8,
 
   // Flags
-  f: u8,
+  // TODO: Make an access interface for these
+  pub f: u8,
 
   // 16 bit registers
   // program counter

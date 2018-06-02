@@ -520,47 +520,236 @@ impl CPU {
   // ------------------------------------
 
   // rotate A left
-  pub fn rlca(&mut self) {}
+  pub fn rlca(&mut self) {
+    let a = self.registers[ByteRegister::A];
+
+    let last_bit = a >> 7;
+    let result = (a << 1) | last_bit;
+
+    self.registers[ByteRegister::A] = result;
+
+    self.registers.clear_flags();
+    if last_bit != 0 { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+  }
 
   // rotate A left through carry
-  pub fn rla(&mut self) {}
+  pub fn rla(&mut self) {
+    let a = self.registers[ByteRegister::A];
+
+    let new_carry = (a >> 7) != 0;
+    // TODO: Check if this is correct
+    let old_carry = (self.registers.f & 0x10) >> 4;
+
+    self.registers[ByteRegister::A] = (a << 1) | old_carry;
+
+    self.registers.clear_flags();
+    if new_carry { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+  }
 
   // rotate A right
-  pub fn rrca(&mut self) {}
+  pub fn rrca(&mut self) {
+    let a = self.registers[ByteRegister::A];
+
+    let first_bit = a & 1;
+
+    self.registers[ByteRegister::A] = (a >> 1) | (first_bit << 7);
+
+    self.registers.clear_flags();
+    if first_bit != 0 { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+  }
+
+  // rotate A right through carry
+  pub fn rra(&mut self) {
+    let a = self.registers[ByteRegister::A];
+
+    let new_carry = (a & 1) != 0;
+    // TODO: Check if this is correct
+    let old_carry = (self.registers.f & 0x10) >> 4;
+
+    self.registers[ByteRegister::A] = (a >> 1) | (old_carry << 7);
+
+    self.registers.clear_flags();
+    if new_carry { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+  }
+
+  // rotate n left
+  pub fn rlc_n(&mut self, n: ByteRegister) {
+    let a = self.registers[n];
+
+    let last_bit = a >> 7;
+    let result = (a << 1) | last_bit;
+
+    self.registers[n] = result;
+
+    self.registers.clear_flags();
+    if last_bit != 0 { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+  }
 
   // rotate n left through carry
-  pub fn rlc_n(&mut self, n: ByteRegister) {}
+  pub fn rl_n(&mut self, n: ByteRegister) {
+    let a = self.registers[n];
 
-  // rotate n left through carry
-  pub fn rl_n(&mut self, n: ByteRegister) {}
+    let new_carry = (a >> 7) != 0;
+    // TODO: Check if this is correct
+    let old_carry = (self.registers.f & 0x10) >> 4;
+
+    self.registers[n] = (a << 1) | old_carry;
+
+    self.registers.clear_flags();
+    if new_carry { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+  }
+
+  // rotate n right
+  pub fn rrc_n(&mut self, n: ByteRegister) {
+    let a = self.registers[n];
+
+    let first_bit = a & 1;
+
+    self.registers[n] = (a >> 1) | (first_bit << 7);
+
+    self.registers.clear_flags();
+    if first_bit != 0 { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+  }
 
   // rotate n right through carry
-  pub fn rrc_n(&mut self, n: ByteRegister) {}
+  pub fn rr_n(&mut self, n: ByteRegister) {
+    let a = self.registers[n];
 
-  // rotate n right through carry
-  pub fn rr_n(&mut self, n: ByteRegister) {}
+    let new_carry = (a & 1) != 0;
+    // TODO: Check if this is correct
+    let old_carry = (self.registers.f & 0x10) >> 4;
+
+    self.registers[n] = (a >> 1) | (old_carry << 7);
+
+    self.registers.clear_flags();
+    if new_carry { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+  }
 
   // shift n left into carry, lsb of n to 0
-  pub fn sla_n(&mut self, n: ByteRegister) {}
+  pub fn sla_n(&mut self, n: ByteRegister) {
+    let value = self.registers[n];
+    let last_bit = value >> 7;
+
+    if last_bit != 0 { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+
+    self.registers[n] = (value << 1) & 0xFE;
+    self.set_last_clock(2);
+  }
+  pub fn sla_hlm(&mut self) {
+    let value = self.read_hl();
+    let last_bit = value >> 7;
+
+    if last_bit != 0 { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+
+    self.write_hl((value << 1) & 0xFE);
+    self.set_last_clock(4);
+  }
 
   // shift n right into carry, keep msb of n
-  pub fn sra_n(&mut self, n: ByteRegister) {}
+  pub fn sra_n(&mut self, n: ByteRegister) {
+    let value = self.registers[n];
+    let last_bit = value >> 7;
+    let first_bit = value & 1;
+
+    if first_bit != 0 { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+
+    self.registers[n] = (value << 1) | (last_bit << 7);
+    self.set_last_clock(2);
+  }
+  pub fn sra_hlm(&mut self) {
+    let value = self.read_hl();
+    let last_bit = value >> 7;
+    let first_bit = value & 1;
+
+    if first_bit != 0 { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+
+    self.write_hl((value << 1) | (last_bit << 7));
+    self.set_last_clock(4);
+  }
 
   // shift n right into carry, msb of n to 0
-  pub fn srl_n(&mut self, n: ByteRegister) {}
+  pub fn srl_n(&mut self, n: ByteRegister) {
+    let value = self.registers[n];
+    let first_bit = value & 1;
+
+    if first_bit != 0 { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+
+    self.registers[n] = value << 1;
+    self.set_last_clock(2);
+  }
+  pub fn srl_hlm(&mut self) {
+    let value = self.read_hl();
+    let first_bit = value & 1;
+
+    if first_bit != 0 { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+
+    self.write_hl(value << 1);
+    self.set_last_clock(4);
+  }
 
   // ------------------------------------
   // Bit Operations
   // ------------------------------------
 
   // test bit b in register n
-  pub fn bit_b_n(&mut self, n: ByteRegister, b: u8) {}
+  pub fn bit_b_n(&mut self, n: ByteRegister, b: u8) {
+    let result = (self.registers[n] >> b) & 1u8;
+    if result == 0 { self.registers.set_zero_flag(); }
+    else { self.registers.unset_zero_flag(); }
+
+    self.registers.unset_sub_flag();
+    self.registers.set_half_carry_flag();
+
+    self.set_last_clock(2);
+  }
+  pub fn bit_b_hlm(&mut self, b: u8) {
+    let result = (self.read_hl() >> b) & 1u8;
+    if result == 0 { self.registers.set_zero_flag(); }
+    else { self.registers.unset_zero_flag(); }
+
+    self.registers.unset_sub_flag();
+    self.registers.set_half_carry_flag();
+
+    self.set_last_clock(4);
+  }
 
   // set bit b in register n
-  pub fn set_b_n(&mut self, n: ByteRegister, b: u8) {}
+  pub fn set_b_n(&mut self, n: ByteRegister, b: u8) {
+    let result = self.registers[n] | (1u8 << b);
+    self.registers[n] = result;
+    self.set_last_clock(2);
+  }
+  pub fn set_b_hlm(&mut self, b: u8) {
+    let result = self.read_hl() | (1u8 << b);
+    self.write_hl(result);
+    self.set_last_clock(4);
+  }
 
   // reset bit b in register n
-  pub fn reset_set_b_n(&mut self, n: ByteRegister, b: u8) {}
+  pub fn reset_set_b_n(&mut self, n: ByteRegister, b: u8) {
+    let result = self.registers[n] & !(1u8 << b);
+    self.registers[n] = result;
+    self.set_last_clock(2);
+  }
+  pub fn reset_set_b_hlm(&mut self, b: u8) {
+    let result = self.read_hl() & !(1u8 << b);
+    self.write_hl(result);
+    self.set_last_clock(4);
+  }
 
   // ------------------------------------
   // Jumps
