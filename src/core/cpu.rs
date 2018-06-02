@@ -764,6 +764,7 @@ impl CPU {
 
   // jump if flag
   pub fn jp_nn_cc(&mut self, flag: Flag) {
+    // TODO: How many cycles does this take if condition is not met?
     if !self.registers.get_flag(flag) { return; }
 
     // TODO: Is it correct that this doesn't take more cycles than jp_nn?!
@@ -774,6 +775,7 @@ impl CPU {
 
   // jump if not flag
   pub fn jp_nn_ncc(&mut self, flag: Flag) {
+    // TODO: How many cycles does this take if condition is not met?
     if self.registers.get_flag(flag) { return; }
 
     // TODO: Is it correct that this doesn't take more cycles than jp_nn?!
@@ -802,6 +804,7 @@ impl CPU {
 
   // add n to current address and jump to it if flag
   pub fn jr_cc_n(&mut self, flag: Flag) {
+    // TODO: How many cycles does this take if condition is not met?
     if !self.registers.get_flag(flag) { return; }
 
     let offset = self.next_byte() as u16;
@@ -815,6 +818,7 @@ impl CPU {
 
   // add n to current address and jump to it if not flag
   pub fn jr_ncc_n(&mut self, flag: Flag) {
+    // TODO: How many cycles does this take if condition is not met?
     if self.registers.get_flag(flag) { return; }
 
     let offset = self.next_byte() as u16;
@@ -831,15 +835,46 @@ impl CPU {
   // ------------------------------------
 
   // push address of next instruction onto stack and jump to nn
-  pub fn call_nn(&mut self, nn: u16) {}
+  pub fn call_nn(&mut self) {
+    let address = self.next_word();
+    let return_address = self.registers.read_word(WordRegister::PC);
+
+    self.push_word(return_address);
+    self.registers.write_word(WordRegister::PC, address);
+    self.set_last_clock(3);
+  }
 
   // call if flag
-  pub fn call_cc_nn(&mut self, flag: Flag, nn: u16) {}
+  pub fn call_cc_nn(&mut self, flag: Flag) {
+    // TODO: Cycles for early return
+    if self.registers.get_flag(flag) { return; }
+
+    let address = self.next_word();
+    let return_address = self.registers.read_word(WordRegister::PC);
+
+    self.push_word(return_address);
+    self.registers.write_word(WordRegister::PC, address);
+    self.set_last_clock(3);
+  }
+
+  // call if not flag
+  pub fn call_ncc_nn(&mut self, flag: Flag) {
+    // TODO: Cycles for early return
+    if !self.registers.get_flag(flag) { return; }
+
+    let address = self.next_word();
+    let return_address = self.registers.read_word(WordRegister::PC);
+
+    self.push_word(return_address);
+    self.registers.write_word(WordRegister::PC, address);
+    self.set_last_clock(3);
+  }
 
   // ------------------------------------
   // Restarts
   // ------------------------------------
 
+  // TODO
   // push current address and jump to 0x0 + n
   pub fn rst_n(&mut self, n: u8) {}
 
@@ -847,12 +882,15 @@ impl CPU {
   // Returns
   // ------------------------------------
 
+  // TODO
   // pop two bytes and jump to address
   pub fn ret(&mut self) {}
 
+  // TODO
   // return if flag
   pub fn ret_cc(&mut self, flag: Flag) {}
 
+  // TODO
   // return and enable interrupts
   pub fn reti(&mut self) {}
 
@@ -909,8 +947,10 @@ impl CPU {
     }
   }
 
+  // TODO
   fn set_flags_add16(&mut self, operands: (u16, u16)) {}
 
+  // TODO
   fn set_flags_sub16(&mut self, operands: (u16, u16)) {}
 
   // get byte at pc and increment pc
@@ -928,6 +968,38 @@ impl CPU {
 
     first | (second << 8)
   }
+
+  fn push_byte(&mut self, byte: u8) {
+    let current = self.registers.read_word(WordRegister::SP);
+    let next = current.wrapping_sub(1);
+    self.registers.write_word(WordRegister::SP, next);
+    self.memory_interface.borrow_mut().write_byte(next, byte);
+  }
+
+  // TODO: Check if this is working correctly
+  fn push_word(&mut self, word: u16) {
+    let current = self.registers.read_word(WordRegister::SP);
+    let next = current.wrapping_sub(2);
+    self.registers.write_word(WordRegister::SP, next);
+    self.memory_interface.borrow_mut().write_word(next, word);
+  }
+
+  fn pop_byte(&mut self) -> u8 {
+    let current = self.registers.read_word(WordRegister::SP);
+    let next = current.wrapping_add(1);
+    self.registers.write_word(WordRegister::SP, next);
+
+    self.memory_interface.borrow().read_byte(current)
+  }
+
+  // TODO: Check if this is working correctly
+  fn pop_word(&mut self) -> u16 {
+    let current = self.registers.read_word(WordRegister::SP);
+    let next = current.wrapping_add(2);
+    self.registers.write_word(WordRegister::SP, next);
+
+    self.memory_interface.borrow().read_word(current)
+  }
 }
 
 fn check_half_carry_add8(operands: (u8, u8)) -> bool {
@@ -938,18 +1010,22 @@ fn check_half_carry_sub8(operands: (u8, u8)) -> bool {
   (((operands.0 as i16) & 0xF) - ((operands.1 as i16) & 0xF)) < 0
 }
 
+// TODO
 fn check_carry_add16(operands: (u16, u16)) -> bool {
   true
 }
 
+// TODO
 fn check_half_carry_add16(operands: (u16, u16)) -> bool {
   true
 }
 
+// TODO
 fn check_carry_sub16(operands: (u16, u16)) -> bool {
   true
 }
 
+// TODO
 fn check_half_carry_sub16(operands: (u16, u16)) -> bool {
   true
 }
