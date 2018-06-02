@@ -874,25 +874,55 @@ impl CPU {
   // Restarts
   // ------------------------------------
 
-  // TODO
   // push current address and jump to 0x0 + n
-  pub fn rst_n(&mut self, n: u8) {}
+  // TODO: Restrict these to possible values?
+  pub fn rst_n(&mut self, n: u16) {
+    let current = self.registers.read_word(WordRegister::PC);
+    self.push_word(current);
+    self.registers.write_word(WordRegister::PC, n);
+
+    // damn this shit takes a while
+    self.set_last_clock(8);
+  }
 
   // ------------------------------------
   // Returns
   // ------------------------------------
 
-  // TODO
   // pop two bytes and jump to address
-  pub fn ret(&mut self) {}
+  pub fn ret(&mut self) {
+    let return_address = self.pop_word();
+    self.registers.write_word(WordRegister::PC, return_address);
+    self.set_last_clock(2);
+  }
 
-  // TODO
   // return if flag
-  pub fn ret_cc(&mut self, flag: Flag) {}
+  pub fn ret_cc(&mut self, flag: Flag) {
+    // TODO: Cycles for early return
+    if self.registers.get_flag(flag) { return; }
 
-  // TODO
+    let return_address = self.pop_word();
+    self.registers.write_word(WordRegister::PC, return_address);
+    self.set_last_clock(2);
+  }
+
+  // return if not flag
+  pub fn ret_ncc(&mut self, flag: Flag) {
+    // TODO: Cycles for early return
+    if !self.registers.get_flag(flag) { return; }
+
+    let return_address = self.pop_word();
+    self.registers.write_word(WordRegister::PC, return_address);
+    self.set_last_clock(2);
+  }
+
   // return and enable interrupts
-  pub fn reti(&mut self) {}
+  pub fn reti(&mut self) {
+    // TODO: Enable interrupts
+    let return_address = self.pop_word();
+    self.registers.write_word(WordRegister::PC, return_address);
+    self.set_last_clock(2);
+  }
 
   // ------------------------------------
   // Utility functions
