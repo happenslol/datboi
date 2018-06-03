@@ -88,7 +88,7 @@ impl Registers {
     };
   }
 
-  pub fn advance_pc(&mut self, amount: u16) { self.pc = self.pc + amount; }
+  pub fn advance_pc(&mut self, amount: u16) { self.pc = self.pc.wrapping_add(amount); }
 
   // Flags manipulation
   // TODO: Inline these?
