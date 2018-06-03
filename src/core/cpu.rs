@@ -1,6 +1,8 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 
+use std::io;
+
 use super::registers::{Registers, ByteRegister, WordRegister, Flag};
 use super::super::mmu::MemoryInterface;
 
@@ -48,7 +50,7 @@ impl CPU {
     let instruction = self.read_pc();
     self.registers.advance_pc(1);
 
-    println!("running instruction {:#x?}", instruction);
+    // println!("running instruction {:#x?}", instruction);
 
     match instruction {
       0x06 => self.ld_nn_n(ByteRegister::B),
@@ -245,7 +247,7 @@ impl CPU {
       0xBC => self.cp_r1(ByteRegister::H),
       0xBD => self.cp_r1(ByteRegister::L),
       0xBE => self.cp_hlm(),
-      0xEE => self.cp_nb(),
+      0xFE => self.cp_nb(),
 
       0x3C => self.inc_n(ByteRegister::A),
       0x04 => self.inc_n(ByteRegister::B),
@@ -651,6 +653,11 @@ impl CPU {
 
     self.clock.m += self.last_clock.m;
     self.clock.t += self.last_clock.t;
+
+    if instruction == 0x00 {
+      println!("hit noop");
+      io::stdin().read_line(&mut String::new()).expect("error");
+    }
   }
 
   // ------------------------------------
@@ -659,7 +666,10 @@ impl CPU {
 
   // Put n into nn
   pub fn ld_nn_n(&mut self, dst: ByteRegister) {
-    self.registers[dst] = self.next_byte();
+    let next_byte = self.next_byte() as i8;
+    // println!("loading {:#x?} into {:?}", next_byte, dst);
+    self.registers[dst] = next_byte as u8;
+    // println!("register {:?} is now {:#x?}", dst, self.registers[dst]);
     self.set_last_clock(2);
   }
 
@@ -837,19 +847,15 @@ impl CPU {
 
   // Push register pair nn onto stack, decrease SP twice
   pub fn push_nn(&mut self, src: WordRegister) {
-    let sp = self.registers.read_word(WordRegister::SP);
     let word = self.registers.read_word(src);
-    self.memory_interface.borrow_mut().write_word(sp, word);
-    self.registers.write_word(WordRegister::SP, sp.wrapping_sub(2));
+    self.push_word(word);
     self.set_last_clock(4);
   }
 
   // Pop word off stack into register pair nn, increment SP twice
   pub fn pop_nn(&mut self, dst: WordRegister) {
-    let sp = self.registers.read_word(WordRegister::SP);
-    let word = self.memory_interface.borrow().read_word(sp);
+    let word = self.pop_word();
     self.registers.write_word(dst, word);
-    self.registers.write_word(WordRegister::SP, sp + 2);
     self.set_last_clock(3);
   }
 
@@ -1148,8 +1154,10 @@ impl CPU {
 
   // decrease n by 1
   pub fn dec_n(&mut self, dst: ByteRegister) {
-    let operands = (self.registers[dst], 1);
+    let operands = (self.registers[dst], 1u8);
     let result = operands.0.wrapping_sub(operands.1);
+
+    if result == 255 { io::stdin().read_line(&mut String::new()).expect("err"); }
 
     self.registers.unset_sub_flag();
     if result == 0 { self.registers.set_zero_flag(); }
@@ -1160,7 +1168,7 @@ impl CPU {
       self.registers.unset_half_carry_flag();
     }
 
-    self.registers[dst] = result as u8;
+    self.registers[dst] = result;
     self.set_last_clock(1);
   }
   pub fn dec_hlm(&mut self) {
@@ -1678,39 +1686,43 @@ impl CPU {
 
   // add n to current address and jump to it (relative jump)
   pub fn jr_n(&mut self) {
-    let offset = self.next_byte() as u16;
-    let address = self.registers
-      .read_word(WordRegister::PC)
-      .wrapping_add(offset);
+    let offset = self.next_byte() as i8;
+    let current = self.registers.read_word(WordRegister::PC) as i16;
+    let address = current.wrapping_add(offset as i16);
 
-    self.registers.write_word(WordRegister::PC, address);
+    println!("\tjumping to {:#x?}", address);
+
+    self.registers.write_word(WordRegister::PC, address as u16);
     self.set_last_clock(2);
   }
 
   // add n to current address and jump to it if flag
   pub fn jr_cc_n(&mut self, flag: Flag) {
+    let offset = self.next_byte() as i8;
+
     // TODO: How many cycles does this take if condition is not met?
     if !self.registers.get_flag(flag) { return; }
 
-    let offset = self.next_byte() as u16;
-    let address = self.registers
-      .read_word(WordRegister::PC)
-      .wrapping_add(offset);
+    let current = self.registers.read_word(WordRegister::PC) as i16;
+    let address = current.wrapping_add(offset as i16);
 
-    self.registers.write_word(WordRegister::PC, address);
+    println!("\tjumping to {:#x?}", address);
+
+    self.registers.write_word(WordRegister::PC, address as u16);
     self.set_last_clock(2);
   }
 
   // add n to current address and jump to it if not flag
   pub fn jr_ncc_n(&mut self, flag: Flag) {
+    let offset = self.next_byte() as i8;
+
     // TODO: How many cycles does this take if condition is not met?
     if self.registers.get_flag(flag) { return; }
 
-    let offset = self.next_byte() as i8;
     let current = self.registers.read_word(WordRegister::PC) as i16;
     let address = current.wrapping_add(offset as i16);
 
-    println!("jumping to {:#x?}", address);
+    println!("\tjumping to {:#x?}", address);
 
     self.registers.write_word(WordRegister::PC, address as u16);
     self.set_last_clock(2);
@@ -1725,6 +1737,8 @@ impl CPU {
     let address = self.next_word();
     let return_address = self.registers.read_word(WordRegister::PC);
 
+    println!("\tcalling to {:#x?}", address);
+
     self.push_word(return_address);
     self.registers.write_word(WordRegister::PC, address);
     self.set_last_clock(3);
@@ -1732,11 +1746,14 @@ impl CPU {
 
   // call if flag
   pub fn call_cc_nn(&mut self, flag: Flag) {
+    let address = self.next_word();
+
     // TODO: Cycles for early return
     if self.registers.get_flag(flag) { return; }
 
-    let address = self.next_word();
     let return_address = self.registers.read_word(WordRegister::PC);
+
+    println!("\tcalling to {:#x?}", address);
 
     self.push_word(return_address);
     self.registers.write_word(WordRegister::PC, address);
@@ -1745,11 +1762,14 @@ impl CPU {
 
   // call if not flag
   pub fn call_ncc_nn(&mut self, flag: Flag) {
+    let address = self.next_word();
+
     // TODO: Cycles for early return
     if !self.registers.get_flag(flag) { return; }
 
-    let address = self.next_word();
     let return_address = self.registers.read_word(WordRegister::PC);
+
+    println!("\tcalling to {:#x?}", address);
 
     self.push_word(return_address);
     self.registers.write_word(WordRegister::PC, address);
@@ -1779,6 +1799,7 @@ impl CPU {
   pub fn ret(&mut self) {
     let return_address = self.pop_word();
     self.registers.write_word(WordRegister::PC, return_address);
+    println!("\treturning to {:#x?}", return_address);
     self.set_last_clock(2);
   }
 
@@ -1788,6 +1809,7 @@ impl CPU {
     if self.registers.get_flag(flag) { return; }
 
     let return_address = self.pop_word();
+
     self.registers.write_word(WordRegister::PC, return_address);
     self.set_last_clock(2);
   }
@@ -1837,6 +1859,19 @@ impl CPU {
   fn read_pc(&self) -> u8 {
     let pointer = self.registers.read_word(WordRegister::PC);
     self.memory_interface.borrow().read_byte(pointer)
+  }
+
+  fn read_sp(&self) -> u8 {
+    let pointer = self.registers.read_word(WordRegister::SP);
+    self.memory_interface.borrow().read_byte(pointer)
+  }
+
+  fn read_sp_word(&self) -> u16 {
+    let pointer = self.registers.read_word(WordRegister::SP);
+    let lower = self.memory_interface.borrow().read_byte(pointer);
+    let upper = self.memory_interface.borrow().read_byte(pointer + 1);
+
+    ((upper as u16) << 8) | (lower as u16)
   }
 
   fn set_flags_add8(&mut self, operands: (u8, u8)) {
@@ -1889,17 +1924,21 @@ impl CPU {
 
   // TODO: Check if this is working correctly
   fn push_word(&mut self, word: u16) {
+    // println!("pushing {:#x?} to stack", word);
+
     let current = self.registers.read_word(WordRegister::SP);
     let next = current.wrapping_sub(2);
     self.registers.write_word(WordRegister::SP, next);
     self.memory_interface.borrow_mut().write_word(next, word);
+
+    let sp = self.registers.read_word(WordRegister::SP);
+    // println!("\t\tstack now points at {:#x?}: {:#x?}", sp, self.read_sp_word());
   }
 
   fn pop_byte(&mut self) -> u8 {
     let current = self.registers.read_word(WordRegister::SP);
     let next = current.wrapping_add(1);
     self.registers.write_word(WordRegister::SP, next);
-
     self.memory_interface.borrow().read_byte(current)
   }
 
@@ -1909,7 +1948,12 @@ impl CPU {
     let next = current.wrapping_add(2);
     self.registers.write_word(WordRegister::SP, next);
 
-    self.memory_interface.borrow().read_word(current)
+    let result = self.memory_interface.borrow().read_word(current);
+
+    let sp = self.registers.read_word(WordRegister::SP);
+    // println!("\t\tgot {:#x?} from stack, now points at {:#x?}", result, sp);
+
+    result
   }
 }
 

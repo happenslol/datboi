@@ -18,10 +18,5 @@ fn main() {
   let memory = Rc::new(RefCell::new(Memory::new()));
   let mut cpu = CPU::new(memory);
 
-  loop {
-    cpu.step();
-
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).expect("error");
-  }
+  loop { cpu.step(); }
 }

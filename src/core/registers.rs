@@ -67,20 +67,20 @@ impl Registers {
   pub fn write_word(&mut self, reg: WordRegister, word: u16) {
     match reg {
       WordRegister::AF => {
-        self.a = word as u8;
-        self.f = (word >> 8) as u8;
+        self.a = (word >> 8) as u8;
+        self.f = word as u8;
       },
       WordRegister::BC => {
-        self.b = word as u8;
-        self.c = (word >> 8) as u8;
+        self.b = (word >> 8) as u8;
+        self.c = word as u8;
       },
       WordRegister::DE => {
-        self.d = word as u8;
-        self.e = (word >> 8) as u8;
+        self.d = (word >> 8) as u8;
+        self.e = word as u8;
       },
       WordRegister::HL => {
-        self.h = word as u8;
-        self.l = (word >> 8) as u8;
+        self.h = (word >> 8) as u8;
+        self.l = word as u8;
       },
 
       WordRegister::SP => self.sp = word,

@@ -119,7 +119,6 @@ pub static BOOTROM: [u8; 0x100] = [
   0x16, 0x20,       // LD     D 0x20
   0x18, 0xCB,       // JR     scroll_loop
 
-
   // crc_0:
   0x4F,             // LD     C A
   // crc_1:
