@@ -125,14 +125,14 @@ impl CPU {
       0x1A => self.ld_a_m(WordRegister::DE),
       0x7E => self.ld_a_m(WordRegister::HL),
       0xFA => self.ld_a_nn(),
-      0x3E => {}, // TODO: load # into a
+      0x3E => self.ld_a_nb(),
 
       // TODO: LD n,A
 
       0xF2 => self.ld_a_cm(),
       0xE2 => self.ld_cm_a(),
-      0x3A => self.ldd_a_hlm(), // TODO: Is this correct?
-      0x32 => self.ldd_hlm_a(), // TODO: Is this correct?
+      0x3A => self.ldd_a_hlm(),
+      0x32 => self.ldd_hlm_a(),
       0x2A => self.ldi_a_hlm(),
       0x22 => self.ldi_hlm_a(),
 
@@ -167,7 +167,7 @@ impl CPU {
       0x84 => self.add_n(ByteRegister::H),
       0x85 => self.add_n(ByteRegister::L),
       0x86 => self.add_hlm(),
-      0xC6 => {}, // TODO: add # to a
+      0xC6 => self.add_nb(),
 
       0x8F => self.adc_n(ByteRegister::A),
       0x88 => self.adc_n(ByteRegister::B),
@@ -177,7 +177,7 @@ impl CPU {
       0x8C => self.adc_n(ByteRegister::H),
       0x8D => self.adc_n(ByteRegister::L),
       0x8E => self.adc_hlm(),
-      0xCE => {}, // TODO: add # + carry to a
+      0xCE => self.adc_nb(),
 
       0x97 => self.sub_n(ByteRegister::A),
       0x90 => self.sub_n(ByteRegister::B),
@@ -187,7 +187,7 @@ impl CPU {
       0x94 => self.sub_n(ByteRegister::H),
       0x95 => self.sub_n(ByteRegister::L),
       0x96 => self.sub_hlm(),
-      0xD6 => {}, // TODO: sub # from a
+      0xD6 => self.sub_nb(),
 
       0x9F => self.sbc_a_n(ByteRegister::A),
       0x98 => self.sbc_a_n(ByteRegister::B),
@@ -206,7 +206,7 @@ impl CPU {
       0xA4 => self.and_n(ByteRegister::H),
       0xA5 => self.and_n(ByteRegister::L),
       0xA6 => self.and_hlm(),
-      0xE6 => {}, // TODO: and a and #
+      0xE6 => self.and_nb(),
 
       0xB7 => self.or_n(ByteRegister::A),
       0xB0 => self.or_n(ByteRegister::B),
@@ -216,7 +216,7 @@ impl CPU {
       0xB4 => self.or_n(ByteRegister::H),
       0xB5 => self.or_n(ByteRegister::L),
       0xB6 => self.or_hlm(),
-      0xF6 => {}, // TODO: or a and #
+      0xF6 => self.or_nb(),
 
       0xAF => self.xor_n(ByteRegister::A),
       0xA8 => self.xor_n(ByteRegister::B),
@@ -226,7 +226,7 @@ impl CPU {
       0xAC => self.xor_n(ByteRegister::H),
       0xAD => self.xor_n(ByteRegister::L),
       0xAE => self.xor_hlm(),
-      0xEE => {}, // TODO: xor a and #
+      0xEE => self.xor_nb(),
 
       0xBF => self.cp_r1(ByteRegister::A),
       0xB8 => self.cp_r1(ByteRegister::B),
@@ -236,7 +236,7 @@ impl CPU {
       0xBC => self.cp_r1(ByteRegister::H),
       0xBD => self.cp_r1(ByteRegister::L),
       0xBE => self.cp_hlm(),
-      0xEE => {}, // TODO: cp a and #
+      0xEE => self.cp_nb(),
 
       0x3C => self.inc_n(ByteRegister::A),
       0x04 => self.inc_n(ByteRegister::B),
@@ -688,6 +688,11 @@ impl CPU {
     self.registers[ByteRegister::A] = byte;
     self.set_last_clock(4);
   }
+  pub fn ld_a_nb(&mut self) {
+    let next_byte = self.next_byte();
+    self.registers[ByteRegister::A] = next_byte;
+    self.set_last_clock(2);
+  }
 
   // Put value from A into n
   pub fn ld_r1_a(&mut self, dst: ByteRegister) {
@@ -860,6 +865,16 @@ impl CPU {
     self.registers[ByteRegister::A] = operands.0.wrapping_add(operands.1);
     self.set_last_clock(2);
   }
+  pub fn add_nb(&mut self) {
+    let next_byte = self.next_byte();
+    let operands = (self.registers[ByteRegister::A], next_byte);
+
+    self.registers.clear_flags();
+    self.set_flags_add8(operands);
+
+    self.registers[ByteRegister::A] = operands.0.wrapping_add(operands.1);
+    self.set_last_clock(2);
+  }
 
   // add n + carry to a
   pub fn adc_n(&mut self, src: ByteRegister) {
@@ -886,6 +901,17 @@ impl CPU {
     let result = operands.0.wrapping_add(operands.1);
     self.set_last_clock(2);
   }
+  pub fn adc_nb(&mut self) {
+    let next_byte = self.next_byte();
+    let flag = self.registers.get_flag(Flag::Carry) as u8;
+    let operands = (self.registers[ByteRegister::A], next_byte.wrapping_add(flag));
+
+    self.registers.clear_flags();
+    self.set_flags_add8(operands);
+
+    let result = operands.0.wrapping_add(operands.1);
+    self.set_last_clock(2);
+  }
 
   // Sub n from A
   pub fn sub_n(&mut self, src: ByteRegister) {
@@ -899,6 +925,16 @@ impl CPU {
   }
   pub fn sub_hlm(&mut self) {
     let operands = (self.registers[ByteRegister::A], self.read_hl());
+
+    self.registers.clear_flags();
+    self.set_flags_sub8(operands);
+
+    self.registers[ByteRegister::A] = operands.0.wrapping_sub(operands.1);
+    self.set_last_clock(2);
+  }
+  pub fn sub_nb(&mut self) {
+    let next_byte = self.next_byte();
+    let operands = (self.registers[ByteRegister::A], next_byte);
 
     self.registers.clear_flags();
     self.set_flags_sub8(operands);
@@ -932,6 +968,17 @@ impl CPU {
     self.registers[ByteRegister::A] = operands.0.wrapping_sub(operands.1);
     self.set_last_clock(2);
   }
+  pub fn sbc_a_nb(&mut self) {
+    let next_byte = self.next_byte();
+    let flag = self.registers.get_flag(Flag::Carry) as u8;
+    let operands = (self.registers[ByteRegister::A], next_byte.wrapping_sub(flag));
+
+    self.registers.clear_flags();
+    self.set_flags_sub8(operands);
+
+    self.registers[ByteRegister::A] = operands.0.wrapping_sub(operands.1);
+    self.set_last_clock(2);
+  }
 
   // AND n with a
   pub fn and_n(&mut self, src: ByteRegister) {
@@ -946,6 +993,17 @@ impl CPU {
   }
   pub fn and_hlm(&mut self) {
     let result = self.registers[ByteRegister::A] & self.read_hl();
+
+    self.registers.clear_flags();
+    if result == 0 { self.registers.set_zero_flag(); }
+    self.registers.set_half_carry_flag();
+
+    self.registers[ByteRegister::A] = result;
+    self.set_last_clock(2);
+  }
+  pub fn and_nb(&mut self) {
+    let next_byte = self.next_byte();
+    let result = self.registers[ByteRegister::A] & next_byte;
 
     self.registers.clear_flags();
     if result == 0 { self.registers.set_zero_flag(); }
@@ -974,6 +1032,16 @@ impl CPU {
     self.registers[ByteRegister::A] = result;
     self.set_last_clock(2);
   }
+  pub fn or_nb(&mut self) {
+    let next_byte = self.next_byte();
+    let result = self.registers[ByteRegister::A] | next_byte;
+
+    self.registers.clear_flags();
+    if result == 0 { self.registers.set_zero_flag(); }
+
+    self.registers[ByteRegister::A] = result;
+    self.set_last_clock(2);
+  }
 
   // XOR n with a
   pub fn xor_n(&mut self, src: ByteRegister) {
@@ -994,6 +1062,16 @@ impl CPU {
     self.registers[ByteRegister::A] = result;
     self.set_last_clock(2);
   }
+  pub fn xor_nb(&mut self) {
+    let next_byte = self.next_byte();
+    let result = self.registers[ByteRegister::A] ^ next_byte;
+
+    self.registers.clear_flags();
+    if result == 0 { self.registers.set_zero_flag(); }
+
+    self.registers[ByteRegister::A] = result;
+    self.set_last_clock(2);
+  }
 
   // cp n with A
   pub fn cp_r1(&mut self, src: ByteRegister) {
@@ -1006,6 +1084,15 @@ impl CPU {
   }
   pub fn cp_hlm(&mut self) {
     let operands = (self.registers[ByteRegister::A], self.read_hl());
+    
+    self.registers.clear_flags();
+    self.set_flags_sub8(operands);
+
+    self.set_last_clock(2);
+  }
+  pub fn cp_nb(&mut self) {
+    let next_byte = self.next_byte();
+    let operands = (self.registers[ByteRegister::A], next_byte);
     
     self.registers.clear_flags();
     self.set_flags_sub8(operands);
