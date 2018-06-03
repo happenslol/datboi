@@ -1,11 +1,11 @@
 use std::ops::{Index, IndexMut};
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum ByteRegister {
   A, B, C, D, E, H, L,
 }
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum WordRegister {
   // combined registers
   AF, BC, DE, HL,

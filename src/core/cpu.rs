@@ -44,9 +44,11 @@ impl CPU {
     }
   }
 
-  pub fn step(&mut self, instruction: u8) {
+  pub fn step(&mut self) {
     let instruction = self.read_pc();
     self.registers.advance_pc(1);
+
+    println!("running instruction {:#x?}", instruction);
 
     match instruction {
       0x06 => self.ld_nn_n(ByteRegister::B),
@@ -71,6 +73,7 @@ impl CPU {
       0x44 => self.ld_r1_r2(ByteRegister::B, ByteRegister::H),
       0x45 => self.ld_r1_r2(ByteRegister::B, ByteRegister::L),
       0x46 => self.ld_r1_hlm(ByteRegister::B),
+      0x47 => self.ld_r1_r2(ByteRegister::B, ByteRegister::A),
       0x48 => self.ld_r1_r2(ByteRegister::C, ByteRegister::B),
       0x49 => self.ld_r1_r2(ByteRegister::C, ByteRegister::C),
       0x4A => self.ld_r1_r2(ByteRegister::C, ByteRegister::D),
@@ -78,6 +81,7 @@ impl CPU {
       0x4C => self.ld_r1_r2(ByteRegister::C, ByteRegister::H),
       0x4D => self.ld_r1_r2(ByteRegister::C, ByteRegister::L),
       0x4E => self.ld_r1_hlm(ByteRegister::C),
+      0x4F => self.ld_r1_r2(ByteRegister::C, ByteRegister::A),
       0x50 => self.ld_r1_r2(ByteRegister::D, ByteRegister::B),
       0x51 => self.ld_r1_r2(ByteRegister::D, ByteRegister::C),
       0x52 => self.ld_r1_r2(ByteRegister::D, ByteRegister::D),
@@ -85,6 +89,7 @@ impl CPU {
       0x54 => self.ld_r1_r2(ByteRegister::D, ByteRegister::H),
       0x55 => self.ld_r1_r2(ByteRegister::D, ByteRegister::L),
       0x56 => self.ld_r1_hlm(ByteRegister::D),
+      0x57 => self.ld_r1_r2(ByteRegister::D, ByteRegister::A),
       0x58 => self.ld_r1_r2(ByteRegister::E, ByteRegister::B),
       0x59 => self.ld_r1_r2(ByteRegister::E, ByteRegister::C),
       0x5A => self.ld_r1_r2(ByteRegister::E, ByteRegister::D),
@@ -92,6 +97,7 @@ impl CPU {
       0x5C => self.ld_r1_r2(ByteRegister::E, ByteRegister::H),
       0x5D => self.ld_r1_r2(ByteRegister::E, ByteRegister::L),
       0x5E => self.ld_r1_hlm(ByteRegister::E),
+      0x5F => self.ld_r1_r2(ByteRegister::E, ByteRegister::A),
       0x60 => self.ld_r1_r2(ByteRegister::H, ByteRegister::B),
       0x61 => self.ld_r1_r2(ByteRegister::H, ByteRegister::C),
       0x62 => self.ld_r1_r2(ByteRegister::H, ByteRegister::D),
@@ -99,6 +105,7 @@ impl CPU {
       0x64 => self.ld_r1_r2(ByteRegister::H, ByteRegister::H),
       0x65 => self.ld_r1_r2(ByteRegister::H, ByteRegister::L),
       0x66 => self.ld_r1_hlm(ByteRegister::H),
+      0x67 => self.ld_r1_r2(ByteRegister::H, ByteRegister::A),
       0x68 => self.ld_r1_r2(ByteRegister::L, ByteRegister::B),
       0x69 => self.ld_r1_r2(ByteRegister::L, ByteRegister::C),
       0x6A => self.ld_r1_r2(ByteRegister::L, ByteRegister::D),
@@ -106,6 +113,8 @@ impl CPU {
       0x6C => self.ld_r1_r2(ByteRegister::L, ByteRegister::H),
       0x6D => self.ld_r1_r2(ByteRegister::L, ByteRegister::L),
       0x6E => self.ld_r1_hlm(ByteRegister::L),
+      0x6F => self.ld_r1_r2(ByteRegister::L, ByteRegister::A),
+      0x77 => self.ld_hlm_r1(ByteRegister::A),
       0x70 => self.ld_hlm_r1(ByteRegister::B),
       0x71 => self.ld_hlm_r1(ByteRegister::C),
       0x72 => self.ld_hlm_r1(ByteRegister::D),
@@ -639,6 +648,9 @@ impl CPU {
 
       _ => println!("unknown instruction: {:#x?}", instruction),
     };
+
+    self.clock.m += self.last_clock.m;
+    self.clock.t += self.last_clock.t;
   }
 
   // ------------------------------------
@@ -1694,12 +1706,13 @@ impl CPU {
     // TODO: How many cycles does this take if condition is not met?
     if self.registers.get_flag(flag) { return; }
 
-    let offset = self.next_byte() as u16;
-    let address = self.registers
-      .read_word(WordRegister::PC)
-      .wrapping_add(offset);
+    let offset = self.next_byte() as i8;
+    let current = self.registers.read_word(WordRegister::PC) as i16;
+    let address = current.wrapping_add(offset as i16);
 
-    self.registers.write_word(WordRegister::PC, address);
+    println!("jumping to {:#x?}", address);
+
+    self.registers.write_word(WordRegister::PC, address as u16);
     self.set_last_clock(2);
   }
 
@@ -1854,9 +1867,8 @@ impl CPU {
 
   // get byte at pc and increment pc
   fn next_byte(&mut self) -> u8 {
-    let pc = self.registers.read_word(WordRegister::PC);
     let next_byte = self.read_pc();
-    self.registers.write_word(WordRegister::PC, pc.wrapping_add(1));
+    self.registers.advance_pc(1);
 
     next_byte
   }
