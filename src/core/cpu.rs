@@ -13,7 +13,8 @@ pub struct CPU {
   clock: Clock,
   registers: Registers,
 
-  interrupts_disabled: bool,
+  interrupts_enabled: bool,
+  interrupts_enabled_after_next: bool,
   in_standby: bool,
   should_power_down: bool,
 
@@ -34,7 +35,8 @@ impl CPU {
     CPU {
       clock,
       registers,
-      interrupts_disabled: false,
+      interrupts_enabled: true,
+      interrupts_enabled_after_next: false,
       in_standby: false,
       should_power_down: false,
       memory_interface,
@@ -188,7 +190,25 @@ impl CPU {
     self.set_last_clock(2);
   }
 
-  // TODO: LD HL,SP+m
+  // load sp + n into hl
+  pub fn ld_hl_sp_n(&mut self) {
+    let sp = self.registers.read_word(WordRegister::SP);
+    let next_byte = self.next_byte() as u16;
+
+    let operands = (sp, next_byte);
+
+    let result = operands.0.wrapping_add(operands.1);
+
+    self.registers.clear_flags();
+    if check_carry_add16(operands) { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+
+    if check_half_carry_add16(operands) { self.registers.set_half_carry_flag(); }
+    else { self.registers.unset_half_carry_flag(); }
+
+    self.registers.write_word(WordRegister::HL, result);
+    self.set_last_clock(3);
+  }
 
   // Put stack pointer into address nn
   pub fn ld_nnm_sp(&mut self, dst: u16) {
@@ -432,7 +452,23 @@ impl CPU {
     self.set_last_clock(2);
   }
 
-  // TODO: ADD SP,n
+  // add n to stack pointer
+  pub fn add_sp_n(&mut self) {
+    let sp = self.registers.read_word(WordRegister::SP);
+    let next_byte = self.next_byte() as u16;
+
+    let operands = (sp, next_byte);
+    let result = operands.0.wrapping_add(operands.1);
+
+    self.registers.clear_flags();
+    if check_carry_add16(operands) { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+    if check_half_carry_add16(operands) {self.registers.set_half_carry_flag(); }
+    else { self.registers.unset_half_carry_flag(); }
+
+    self.registers.write_word(WordRegister::SP, result);
+    self.set_last_clock(4);
+  }
 
   // increase nn
   pub fn inc_nn(&mut self, dst: WordRegister) {
@@ -469,7 +505,39 @@ impl CPU {
     self.set_last_clock(4);
   }
 
-  // TODO: DAA
+  // decimal adjust register a
+  pub fn daa(&mut self) {
+    let a = self.registers[ByteRegister::A];
+
+    let mut adjust = 0;
+
+    // check if we need to adjust for halfcarry
+    if self.registers.get_flag(Flag::HalfCarry) { adjust |= 0x06; }
+
+    // check if we need to adjust for carry
+    if self.registers.get_flag(Flag::Carry) { adjust |= 0x60; }
+
+    let result = if self.registers.get_flag(Flag::Sub) {
+      a.wrapping_sub(adjust)
+    } else {
+      // TODO: Understand this at some point
+      if a & 0x0F > 0x09 { adjust |= 0x06; }
+      if a > 0x99 { adjust |= 0x60; }
+
+      a.wrapping_sub(adjust)
+    };
+
+    self.registers[ByteRegister::A] = result;
+    self.registers.unset_half_carry_flag();
+
+    if result == 0 { self.registers.set_zero_flag(); }
+    else { self.registers.unset_zero_flag(); }
+
+    if (adjust & 0x60 != 0) { self.registers.set_carry_flag(); }
+    else { self.registers.unset_carry_flag(); }
+
+    self.set_last_clock(1);
+  }
 
   // complement a register (flip all bits)
   pub fn cpl(&mut self) {
@@ -511,9 +579,17 @@ impl CPU {
     self.set_last_clock(1);
   }
 
-  // TODO: Disable/enable interrupts after next instruction
-  pub fn di(&mut self) {}
-  pub fn ei(&mut self) {}
+  // disable interrupts after next instruction
+  pub fn di(&mut self) {
+    self.interrupts_enabled = false;
+    self.set_last_clock(1);
+  }
+
+  // enable interrupts after next instruction
+  pub fn ei(&mut self) {
+    self.interrupts_enabled_after_next = true;
+    self.set_last_clock(1);
+  }
 
   // ------------------------------------
   // Rotates/Shifts
@@ -918,9 +994,11 @@ impl CPU {
 
   // return and enable interrupts
   pub fn reti(&mut self) {
-    // TODO: Enable interrupts
     let return_address = self.pop_word();
     self.registers.write_word(WordRegister::PC, return_address);
+
+    self.interrupts_enabled = true;
+
     self.set_last_clock(2);
   }
 
