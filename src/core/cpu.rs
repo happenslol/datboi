@@ -1055,12 +1055,6 @@ impl CPU {
     }
   }
 
-  // TODO
-  fn set_flags_add16(&mut self, operands: (u16, u16)) {}
-
-  // TODO
-  fn set_flags_sub16(&mut self, operands: (u16, u16)) {}
-
   // get byte at pc and increment pc
   fn next_byte(&mut self) -> u8 {
     let pc = self.registers.read_word(WordRegister::PC);
@@ -1118,22 +1112,15 @@ fn check_half_carry_sub8(operands: (u8, u8)) -> bool {
   (((operands.0 as i16) & 0xF) - ((operands.1 as i16) & 0xF)) < 0
 }
 
-// TODO
 fn check_carry_add16(operands: (u16, u16)) -> bool {
-  true
+  let result = (operands.0 as u32) + (operands.1 as u32);
+  (result >> 9) & 1 != 0
 }
 
-// TODO
+// TODO: Do this more efficiently
 fn check_half_carry_add16(operands: (u16, u16)) -> bool {
-  true
-}
+  let lhs = (operands.0 >> 7) & 1;
+  let rhs = (operands.1 >> 7) & 1;
 
-// TODO
-fn check_carry_sub16(operands: (u16, u16)) -> bool {
-  true
-}
-
-// TODO
-fn check_half_carry_sub16(operands: (u16, u16)) -> bool {
-  true
+  (lhs & rhs) != 0
 }
