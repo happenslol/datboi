@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::io;
 
 use super::registers::{Registers, ByteRegister, WordRegister, Flag};
-use super::super::mmu::MemoryInterface;
+use ::mmu::MemoryInterface;
 
 pub struct Clock {
   pub m: u32,
@@ -47,10 +47,11 @@ impl CPU {
   }
 
   pub fn step(&mut self) {
+
+    let pc = self.registers.read_word(WordRegister::PC);
+
     let instruction = self.read_pc();
     self.registers.advance_pc(1);
-
-    // println!("running instruction {:#x?}", instruction);
 
     match instruction {
       0x06 => self.ld_nn_n(ByteRegister::B),
@@ -138,7 +139,7 @@ impl CPU {
       0xFA => self.ld_a_nn(),
       0x3E => self.ld_a_nb(),
 
-      // TODO: LD n,A
+      0xEA => self.ld_nnm_a(),
 
       0xF2 => self.ld_a_cm(),
       0xE2 => self.ld_cm_a(),
@@ -635,7 +636,7 @@ impl CPU {
           0xBE => self.res_b_hlm(7),
           0xBF => self.res_b_n(ByteRegister::A, 7),
 
-          _ => println!("unkown 2 byte instruction: 0xCB {:#x?}", next_byte),
+          _ => println!("unkown 2 byte instruction: 0xCB {:#04X}", next_byte),
         };
       },
 
@@ -644,11 +645,29 @@ impl CPU {
         match next_byte {
           0x00 => self.stop(),
 
-          _ => println!("unkown 2 byte instruction: 0x10 {:#x?}", next_byte),
+          _ => println!("unkown 2 byte instruction: 0x10 {:#04X}", next_byte),
         }
       }
 
-      _ => println!("unknown instruction: {:#x?}", instruction),
+      _ => println!("unknown instruction: {:#04X}", instruction),
+    };
+
+    match pc {
+      0x0003 => println!("zeroing vram"),
+      0x000C => println!("setting up audio"),
+      0x001D => println!("setting up bg palette"),
+      0x0021 => println!("loading logo data into vram"),
+      0x0034 => println!("load 8 more bytes into vram"),
+      0x0040 => println!("setup background tilemap"),
+      0x0055 => println!("logo start!"),
+      0x0080 => println!("playing sound"),
+
+      // logo scroll routine
+      0x0058 => {
+        let a = self.registers[ByteRegister::A];
+        println!("loaded scroll count into register, a is now {:#04X}", a);
+      },
+      _ => {},
     };
 
     self.clock.m += self.last_clock.m;
@@ -667,9 +686,7 @@ impl CPU {
   // Put n into nn
   pub fn ld_nn_n(&mut self, dst: ByteRegister) {
     let next_byte = self.next_byte() as i8;
-    // println!("loading {:#x?} into {:?}", next_byte, dst);
     self.registers[dst] = next_byte as u8;
-    // println!("register {:?} is now {:#x?}", dst, self.registers[dst]);
     self.set_last_clock(2);
   }
 
@@ -797,6 +814,14 @@ impl CPU {
     let pointer = 0xFF00 + (self.next_byte() as u16);
     self.memory_interface.borrow_mut().write_byte(pointer, byte);
     self.set_last_clock(3);
+  }
+
+  // put value from a into (nn)
+  pub fn ld_nnm_a(&mut self) {
+    let byte = self.registers[ByteRegister::A];
+    let address = self.next_word();
+    self.memory_interface.borrow_mut().write_byte(address, byte);
+    self.set_last_clock(4);
   }
 
   // ------------------------------------
@@ -1690,7 +1715,7 @@ impl CPU {
     let current = self.registers.read_word(WordRegister::PC) as i16;
     let address = current.wrapping_add(offset as i16);
 
-    println!("\tjumping to {:#x?}", address);
+    // println!("\tjumping to {:#04X}", address);
 
     self.registers.write_word(WordRegister::PC, address as u16);
     self.set_last_clock(2);
@@ -1706,7 +1731,7 @@ impl CPU {
     let current = self.registers.read_word(WordRegister::PC) as i16;
     let address = current.wrapping_add(offset as i16);
 
-    println!("\tjumping to {:#x?}", address);
+    // println!("\tjumping to {:#04X}", address);
 
     self.registers.write_word(WordRegister::PC, address as u16);
     self.set_last_clock(2);
@@ -1722,7 +1747,7 @@ impl CPU {
     let current = self.registers.read_word(WordRegister::PC) as i16;
     let address = current.wrapping_add(offset as i16);
 
-    println!("\tjumping to {:#x?}", address);
+    // println!("\tjumping to {:#04X}", address);
 
     self.registers.write_word(WordRegister::PC, address as u16);
     self.set_last_clock(2);
@@ -1737,7 +1762,7 @@ impl CPU {
     let address = self.next_word();
     let return_address = self.registers.read_word(WordRegister::PC);
 
-    println!("\tcalling to {:#x?}", address);
+    // println!("\tcalling to {:#04X}", address);
 
     self.push_word(return_address);
     self.registers.write_word(WordRegister::PC, address);
@@ -1753,7 +1778,7 @@ impl CPU {
 
     let return_address = self.registers.read_word(WordRegister::PC);
 
-    println!("\tcalling to {:#x?}", address);
+    // println!("\tcalling to {:#04X}", address);
 
     self.push_word(return_address);
     self.registers.write_word(WordRegister::PC, address);
@@ -1769,7 +1794,7 @@ impl CPU {
 
     let return_address = self.registers.read_word(WordRegister::PC);
 
-    println!("\tcalling to {:#x?}", address);
+    // println!("\tcalling to {:#04X}", address);
 
     self.push_word(return_address);
     self.registers.write_word(WordRegister::PC, address);
@@ -1799,7 +1824,7 @@ impl CPU {
   pub fn ret(&mut self) {
     let return_address = self.pop_word();
     self.registers.write_word(WordRegister::PC, return_address);
-    println!("\treturning to {:#x?}", return_address);
+    // println!("\treturning to {:#04X}", return_address);
     self.set_last_clock(2);
   }
 
@@ -1887,7 +1912,7 @@ impl CPU {
   }
 
   fn set_flags_sub8(&mut self, operands: (u8, u8)) {
-    let result = (operands.0 as i16) + (operands.1 as i16);
+    let result = (operands.0 as i16) - (operands.1 as i16);
 
     self.registers.set_sub_flag();
 
@@ -1924,15 +1949,12 @@ impl CPU {
 
   // TODO: Check if this is working correctly
   fn push_word(&mut self, word: u16) {
-    // println!("pushing {:#x?} to stack", word);
-
     let current = self.registers.read_word(WordRegister::SP);
     let next = current.wrapping_sub(2);
     self.registers.write_word(WordRegister::SP, next);
     self.memory_interface.borrow_mut().write_word(next, word);
 
     let sp = self.registers.read_word(WordRegister::SP);
-    // println!("\t\tstack now points at {:#x?}: {:#x?}", sp, self.read_sp_word());
   }
 
   fn pop_byte(&mut self) -> u8 {
@@ -1951,7 +1973,6 @@ impl CPU {
     let result = self.memory_interface.borrow().read_word(current);
 
     let sp = self.registers.read_word(WordRegister::SP);
-    // println!("\t\tgot {:#x?} from stack, now points at {:#x?}", result, sp);
 
     result
   }

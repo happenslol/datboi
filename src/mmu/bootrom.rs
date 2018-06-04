@@ -160,9 +160,9 @@ pub static BOOTROM: [u8; 0x100] = [
   // it with 0x00 0x00 (NOP NOP) will allow invalid ROMs to run.
 
   // allow invalid roms
-  0x00, 0x00,
+  // 0x00, 0x00,
 
-  // 0x20, 0xFE,       // JR NZ  .
+  0x20, 0xFE,       // JR NZ  .
   0x23,             // INC    HL
   0x7D,             // LD     A L
   0xFE, 0x34,       // CP     A 0x32
