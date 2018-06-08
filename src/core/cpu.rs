@@ -20,6 +20,8 @@ pub struct CPU {
   in_standby: bool,
   should_power_down: bool,
 
+  should_step: bool,
+
   // clock for last instruction
   // TODO: should this be here or in the registers?
   last_clock: Clock,
@@ -41,13 +43,13 @@ impl CPU {
       interrupts_enabled_after_next: false,
       in_standby: false,
       should_power_down: false,
+      should_step: false,
       memory_interface,
       last_clock,
     }
   }
 
   pub fn step(&mut self) {
-
     let pc = self.registers.read_word(WordRegister::PC);
 
     let instruction = self.read_pc();
@@ -666,12 +668,18 @@ impl CPU {
       0x0058 => {
         let a = self.registers[ByteRegister::A];
         println!("loaded scroll count into register, a is now {:#04X}", a);
+        self.should_step = true;
       },
       _ => {},
     };
 
     self.clock.m += self.last_clock.m;
     self.clock.t += self.last_clock.t;
+
+    if self.should_step {
+      println!("running instruction {:#04X}", instruction);
+      io::stdin().read_line(&mut String::new()).expect("err");
+    }
 
     if instruction == 0x00 {
       println!("hit noop");

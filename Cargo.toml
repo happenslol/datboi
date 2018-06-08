@@ -1,6 +1,8 @@
 [package]
 name = "datboi"
 version = "0.1.0"
-authors = ["Hilmar Wiegand <hilmar.wiegand@flameshome.net>"]
+authors = ["Hilmar Wiegand <me@hwgnd.de>"]
 
 [dependencies]
+glutin = "*"
+gl = "*"

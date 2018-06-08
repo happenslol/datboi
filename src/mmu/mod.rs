@@ -1,3 +1,5 @@
+use ::gpu::Gpu;
+
 mod bootrom;
 
 pub trait MemoryInterface {
@@ -8,26 +10,44 @@ pub trait MemoryInterface {
   fn write_word(&mut self, addr: u16, value: u16);
 }
 
+pub enum Interrupt {
+  VBlank,
+  HBlank,
+  Timer,
+  Serial,
+  LcdStat,
+  Joypad,
+}
+
 pub struct Memory {
   in_bios: bool,
 
+  interrupts: u8,
+  interrupt_enable: u8,
+
   ram: Vec<u8>,
-  vram: Vec<u8>,
   zero_page: Vec<u8>,
+  gpu: Gpu,
 }
 
 impl Memory {
   pub fn new() -> Memory {
     let ram = (0..=0x2000).map(|_| 0x00).collect::<Vec<u8>>();
-    let vram = (0..=0x2000).map(|_| 0x00).collect::<Vec<u8>>();
     let zero_page = (0..=0x7F).map(|_| 0x00).collect::<Vec<u8>>();
+
+    let gpu = Gpu::new();
 
     Memory {
       in_bios: true,
 
+      interrupts: 0x00,
+
+      // all interrupts enabled
+      interrupt_enable: 0x1F,
+
       ram,
-      vram,
       zero_page,
+      gpu,
     }
   }
 }
@@ -44,7 +64,7 @@ impl MemoryInterface for Memory {
       },
 
       // VRAM
-      0x8000...0x9FFF => self.vram[address - 0x8000],
+      0x8000...0x9FFF => self.gpu.vram[address - 0x8000],
 
       // RAM Bank n
       0xA000...0xBFFF => { 0 },
@@ -92,7 +112,7 @@ impl MemoryInterface for Memory {
 
       // VRAM
       0x8000...0x9FFF => {
-        to_word(self.vram[address - 0x8000], self.vram[address - 0x8000 + 1])
+        to_word(self.gpu.vram[address - 0x8000], self.gpu.vram[address - 0x8000 + 1])
       },
 
       // RAM Bank n
@@ -135,7 +155,7 @@ impl MemoryInterface for Memory {
       0x0000...0x7FFF => {},
 
       // VRAM
-      0x8000...0x9FFF => self.vram[address - 0x8000] = value,
+      0x8000...0x9FFF => self.gpu.vram[address - 0x8000] = value,
 
       // RAM Bank n
       0xA000...0xBFFF => {},
@@ -143,7 +163,7 @@ impl MemoryInterface for Memory {
       // RAM
       0xC000...0xDFFF => self.ram[address - 0xC000] = value,
 
-      // IRAM echo
+      // shadow RAM
       0xE000...0xFDFF => {},
 
       // OAM
@@ -174,8 +194,8 @@ impl MemoryInterface for Memory {
 
       // VRAM
       0x8000...0x9FFF => {
-        self.vram[address - 0x8000] = (value >> 8) as u8;
-        self.vram[address - 0x8000 + 1] = value as u8;
+        self.gpu.vram[address - 0x8000] = (value >> 8) as u8;
+        self.gpu.vram[address - 0x8000 + 1] = value as u8;
       }
 
       // RAM Bank n
