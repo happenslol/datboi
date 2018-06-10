@@ -102,7 +102,13 @@ impl MemoryInterface for Memory {
       0xFE00...0xFE9F => { 0 },
 
       // IO
-      0xFF00...0xFF4B => { 0 },
+      0xFF00...0xFF4B => {
+        match address {
+          0xFF44 => self.gpu.borrow().line,
+
+          _ => 0,
+        }
+      },
 
       // register for unmapping the bootrom
       0xFF50 => { println!("tried to read from bootmap unmap register"); 0 },
@@ -197,7 +203,13 @@ impl MemoryInterface for Memory {
       0xFE00...0xFE9F => {},
 
       // IO
-      0xFF00...0xFF4B => {},
+      0xFF00...0xFF4B => {
+        match address {
+          0xFF40 => self.gpu.borrow_mut().set_lcd_control(value),
+
+          _ => {},
+        };
+      },
 
       // register for unmapping the bootrom
       0xFF50 => println!("bootrom unmapped!"),

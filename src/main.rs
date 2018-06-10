@@ -27,23 +27,15 @@ fn main() {
   let mut cpu = CPU::new(memory.clone());
 
   loop {
-    let mut next_interrupt = None;
+    // {
+    //   let mut memory = memory.borrow_mut();
+    //   if let Some(interrupt) = memory.current_interrupt {
+    //     memory.current_interrupt = None;
+    //     cpu.interrupt_queue.push_back(interrupt);
+    //   }
+    // }
 
-    {
-      let mut memory = memory.borrow_mut();
-      if let Some(interrupt) = memory.current_interrupt {
-        println!("found {:?} Interrupt", interrupt);
-        io::stdin().read_line(&mut String::new()).expect("err");
-        memory.current_interrupt = None;
-
-        next_interrupt = Some(interrupt);
-      }
-    }
-
-    if let Some(handler) = next_interrupt {
-      cpu.rst_n(InterruptHandler::VBlank as u8);
-    } else { cpu.step(); }
-    
+    cpu.step();
     gpu.borrow_mut().step(cpu.last_clock.t);
     memory.borrow_mut().step();
   }

@@ -16,7 +16,9 @@ pub struct Gpu {
   pub vblank_interrupt: bool,
 
   clock: u32,
-  line: u8,
+  pub line: u8,
+
+  pub enabled: bool,
 }
 
 impl Gpu {
@@ -34,10 +36,14 @@ impl Gpu {
 
       clock: 0,
       line: 0,
+
+      enabled: false,
     }
   }
 
   pub fn step(&mut self, cycles: u32) {
+    if !self.enabled { return; }
+
     let mode = self.mode;
 
     self.clock += cycles;
@@ -93,5 +99,12 @@ impl Gpu {
         // write to buffer here
       },
     };
+  }
+
+  pub fn set_lcd_control(&mut self, value: u8) {
+    self.enabled = value & 0x80 != 0;
+    if self.enabled {
+      println!("enabled!")
+    }
   }
 }

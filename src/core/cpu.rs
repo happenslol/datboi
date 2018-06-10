@@ -2,9 +2,10 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 use std::io;
+use std::collections::VecDeque;
 
 use super::registers::{Registers, ByteRegister, WordRegister, Flag};
-use ::mmu::MemoryInterface;
+use ::mmu::{MemoryInterface, Interrupt};
 
 pub struct Clock {
   pub m: u32,
@@ -12,16 +13,19 @@ pub struct Clock {
 }
 
 pub enum InterruptHandler {
+  // TODO: correct locations for these
   VBlank = 0x40,
-  LcdStat = 0x48,
-  Timer = 0x50,
-  Serial = 0x58,
-  Joypad = 0x60,
+  LcdStat = 0x01,
+  Timer = 0x02,
+  Serial = 0x03,
+  Joypad = 0x04,
 }
 
 pub struct CPU {
   clock: Clock,
   registers: Registers,
+
+  pub interrupt_queue: VecDeque<Interrupt>,
 
   interrupts_enabled: bool,
   interrupts_enabled_after_next: bool,
@@ -47,6 +51,7 @@ impl CPU {
     CPU {
       clock,
       registers,
+      interrupt_queue: VecDeque::new(),
       interrupts_enabled: true,
       interrupts_enabled_after_next: false,
       in_standby: false,
@@ -59,6 +64,17 @@ impl CPU {
 
   pub fn step(&mut self) {
     let pc = self.registers.read_word(WordRegister::PC);
+
+    if let Some(interrupt) = self.interrupt_queue.pop_front() {
+      let isr = match interrupt {
+        Interrupt::VBlank => InterruptHandler::VBlank as u8,
+
+        // all unknown interrupts are a no op for now
+        _ => 0x00,
+      };
+
+      self.rst_n(isr);
+    }
 
     let instruction = self.read_pc();
     self.registers.advance_pc(1);
@@ -672,12 +688,10 @@ impl CPU {
       0x0055 => println!("logo start!"),
       0x0080 => println!("playing sound"),
 
-      // logo scroll routine
-      0x0058 => {
-        let a = self.registers[ByteRegister::A];
-        println!("loaded scroll count into register, a is now {:#04X}", a);
-        // self.should_step = true;
-      },
+      0x0060 => println!("in scrolling loop"),
+
+      0x00E0 => println!("doing logo check"),
+
       _ => {},
     };
 
@@ -1824,6 +1838,7 @@ impl CPU {
   // push current address and jump to 0x0 + n
   // TODO: Restrict these to possible values?
   pub fn rst_n(&mut self, n: u8) {
+    println!("handling");
     let current = self.registers.read_word(WordRegister::PC);
     self.push_word(current);
     self.registers.write_word(WordRegister::PC, 0x0000 + (n as u16));
@@ -1867,6 +1882,7 @@ impl CPU {
 
   // return and enable interrupts
   pub fn reti(&mut self) {
+    println!("returning");
     let return_address = self.pop_word();
     self.registers.write_word(WordRegister::PC, return_address);
 
