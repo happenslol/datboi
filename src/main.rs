@@ -15,14 +15,38 @@ mod core;
 mod mmu;
 mod gpu;
 
-use core::cpu::CPU;
+use gpu::Gpu;
 use mmu::Memory;
+use core::cpu::{CPU, InterruptHandler};
 
 fn main() {
   // TODO: Find another way to let the CPU access the mmu
   // if Rc<RefCell> turns out to be too much overhead
-  let memory = Rc::new(RefCell::new(Memory::new()));
-  let mut cpu = CPU::new(memory);
+  let gpu = Rc::new(RefCell::new(Gpu::new()));
+  let memory = Rc::new(RefCell::new(Memory::new(gpu.clone())));
+  let mut cpu = CPU::new(memory.clone());
+
+  loop {
+    let mut next_interrupt = None;
+
+    {
+      let mut memory = memory.borrow_mut();
+      if let Some(interrupt) = memory.current_interrupt {
+        println!("found {:?} Interrupt", interrupt);
+        io::stdin().read_line(&mut String::new()).expect("err");
+        memory.current_interrupt = None;
+
+        next_interrupt = Some(interrupt);
+      }
+    }
+
+    if let Some(handler) = next_interrupt {
+      cpu.rst_n(InterruptHandler::VBlank as u8);
+    } else { cpu.step(); }
+    
+    gpu.borrow_mut().step(cpu.last_clock.t);
+    memory.borrow_mut().step();
+  }
 
   let mut events_loop = glutin::EventsLoop::new();
   let window = glutin::WindowBuilder::new()
@@ -54,7 +78,6 @@ fn main() {
       };
     });
 
-    cpu.step();
 
     unsafe { gl::Clear(gl::COLOR_BUFFER_BIT); }
     gl_window.swap_buffers().unwrap();

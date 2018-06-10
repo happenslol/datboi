@@ -11,6 +11,14 @@ pub struct Clock {
   pub t: u32,
 }
 
+pub enum InterruptHandler {
+  VBlank = 0x40,
+  LcdStat = 0x48,
+  Timer = 0x50,
+  Serial = 0x58,
+  Joypad = 0x60,
+}
+
 pub struct CPU {
   clock: Clock,
   registers: Registers,
@@ -24,7 +32,7 @@ pub struct CPU {
 
   // clock for last instruction
   // TODO: should this be here or in the registers?
-  last_clock: Clock,
+  pub last_clock: Clock,
 
   // Hardware interfaces
   memory_interface: Rc<RefCell<MemoryInterface>>,
@@ -668,7 +676,7 @@ impl CPU {
       0x0058 => {
         let a = self.registers[ByteRegister::A];
         println!("loaded scroll count into register, a is now {:#04X}", a);
-        self.should_step = true;
+        // self.should_step = true;
       },
       _ => {},
     };

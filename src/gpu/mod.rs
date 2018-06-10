@@ -13,8 +13,7 @@ pub struct Gpu {
   pub mode: GpuMode,
   pub vram: Vec<u8>,
 
-  vblank_interrupt: bool,
-  hblank_interrupt: bool,
+  pub vblank_interrupt: bool,
 
   clock: u32,
   line: u8,
@@ -32,7 +31,6 @@ impl Gpu {
       vram,
 
       vblank_interrupt: false,
-      hblank_interrupt: false,
 
       clock: 0,
       line: 0,
@@ -64,10 +62,13 @@ impl Gpu {
 
       GpuMode::VBlank => {
         if self.clock < 456 { return; }
+        if self.clock == 456 { self.vblank_interrupt = true; }
 
         self.clock = 0;
 
-        // why do this here?!
+        // we spend 10 lines in vblank, so
+        // we need to keep track of the current
+        // line here
         self.line += 1;
 
         if self.line > 153 {

@@ -1,3 +1,6 @@
+use std::rc::Rc;
+use std::cell::RefCell;
+
 use ::gpu::Gpu;
 
 mod bootrom;
@@ -10,9 +13,9 @@ pub trait MemoryInterface {
   fn write_word(&mut self, addr: u16, value: u16);
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum Interrupt {
   VBlank,
-  HBlank,
   Timer,
   Serial,
   LcdStat,
@@ -23,24 +26,27 @@ pub struct Memory {
   in_bios: bool,
 
   interrupts: u8,
+  pub current_interrupt: Option<Interrupt>,
+  interrupt_master_enable: bool,
   interrupt_enable: u8,
 
   ram: Vec<u8>,
   zero_page: Vec<u8>,
-  gpu: Gpu,
+
+  gpu: Rc<RefCell<Gpu>>,
 }
 
 impl Memory {
-  pub fn new() -> Memory {
+  pub fn new(gpu: Rc<RefCell<Gpu>>) -> Memory {
     let ram = (0..=0x2000).map(|_| 0x00).collect::<Vec<u8>>();
     let zero_page = (0..=0x7F).map(|_| 0x00).collect::<Vec<u8>>();
-
-    let gpu = Gpu::new();
 
     Memory {
       in_bios: true,
 
       interrupts: 0x00,
+      current_interrupt: None,
+      interrupt_master_enable: false,
 
       // all interrupts enabled
       interrupt_enable: 0x1F,
@@ -49,6 +55,23 @@ impl Memory {
       zero_page,
       gpu,
     }
+  }
+
+  pub fn step(&mut self) {
+    if self.gpu.borrow().vblank_interrupt {
+      self.gpu.borrow_mut().vblank_interrupt = false;
+      self.set_interrupt(Interrupt::VBlank, true);
+    }
+  }
+
+  fn set_interrupt(&mut self, interrupt: Interrupt, value: bool) {
+    if value { self.current_interrupt = Some(interrupt); }
+
+    match (interrupt, value) {
+      (Interrupt::VBlank, true) => self.interrupts |= 0x01,
+      (Interrupt::VBlank, false) => self.interrupts &= 0xFE,
+      _ => {},
+    };
   }
 }
 
@@ -64,7 +87,7 @@ impl MemoryInterface for Memory {
       },
 
       // VRAM
-      0x8000...0x9FFF => self.gpu.vram[address - 0x8000],
+      0x8000...0x9FFF => self.gpu.borrow().vram[address - 0x8000],
 
       // RAM Bank n
       0xA000...0xBFFF => { 0 },
@@ -112,7 +135,11 @@ impl MemoryInterface for Memory {
 
       // VRAM
       0x8000...0x9FFF => {
-        to_word(self.gpu.vram[address - 0x8000], self.gpu.vram[address - 0x8000 + 1])
+        let gpu = self.gpu.borrow();
+        to_word(
+          gpu.vram[address - 0x8000],
+          gpu.vram[address - 0x8000 + 1]
+        )
       },
 
       // RAM Bank n
@@ -155,7 +182,7 @@ impl MemoryInterface for Memory {
       0x0000...0x7FFF => {},
 
       // VRAM
-      0x8000...0x9FFF => self.gpu.vram[address - 0x8000] = value,
+      0x8000...0x9FFF => self.gpu.borrow_mut().vram[address - 0x8000] = value,
 
       // RAM Bank n
       0xA000...0xBFFF => {},
@@ -194,8 +221,9 @@ impl MemoryInterface for Memory {
 
       // VRAM
       0x8000...0x9FFF => {
-        self.gpu.vram[address - 0x8000] = (value >> 8) as u8;
-        self.gpu.vram[address - 0x8000 + 1] = value as u8;
+        let mut gpu = self.gpu.borrow_mut();
+        gpu.vram[address - 0x8000] = (value >> 8) as u8;
+        gpu.vram[address - 0x8000 + 1] = value as u8;
       }
 
       // RAM Bank n
