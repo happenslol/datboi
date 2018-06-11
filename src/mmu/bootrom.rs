@@ -160,9 +160,9 @@ pub static BOOTROM: [u8; 0x100] = [
   // it with 0x00 0x00 (NOP NOP) will allow invalid ROMs to run.
 
   // allow invalid roms
-  // 0x00, 0x00,
+  0x00, 0x00,
 
-  0x20, 0xFE,       // JR NZ  .
+  // 0x20, 0xFE,       // JR NZ  .
   0x23,             // INC    HL
   0x7D,             // LD     A L
   0xFE, 0x34,       // CP     A 0x32
@@ -177,7 +177,8 @@ pub static BOOTROM: [u8; 0x100] = [
   0x86,             // ADD    A [HL]
   // same as above, infinite loop if the sum is bad, replace with
   // NOPs to run anyway.
-  0x20, 0xFE,       // JR NZ  .
+  0x00, 0x00,
+  // 0x20, 0xFE,       // JR NZ  .
   0x3E, 0x01,       // LD A   0x1
   // There shouldn't be anything at that address, I assume that's
   // how you tell the hardware to unmap the bootrom
