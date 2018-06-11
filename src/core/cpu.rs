@@ -688,9 +688,12 @@ impl CPU {
       0x0055 => println!("logo start!"),
       0x0080 => println!("playing sound"),
 
-      0x0060 => println!("in scrolling loop"),
-
       0x00E0 => println!("doing logo check"),
+
+      0x00FE => {
+        println!("done");
+        self.should_step = true;
+      },
 
       _ => {},
     };
@@ -699,13 +702,8 @@ impl CPU {
     self.clock.t += self.last_clock.t;
 
     if self.should_step {
-      println!("running instruction {:#04X}", instruction);
+      println!("ran instruction {:#04X} at {:#04X}", instruction, pc);
       io::stdin().read_line(&mut String::new()).expect("err");
-    }
-
-    if instruction == 0x00 {
-      println!("hit noop");
-      io::stdin().read_line(&mut String::new()).expect("error");
     }
   }
 
@@ -1211,8 +1209,6 @@ impl CPU {
   pub fn dec_n(&mut self, dst: ByteRegister) {
     let operands = (self.registers[dst], 1u8);
     let result = operands.0.wrapping_sub(operands.1);
-
-    if result == 255 { io::stdin().read_line(&mut String::new()).expect("err"); }
 
     self.registers.unset_sub_flag();
     if result == 0 { self.registers.set_zero_flag(); }
