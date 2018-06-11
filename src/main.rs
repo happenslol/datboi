@@ -4,7 +4,7 @@
 extern crate gl;
 extern crate glutin;
 
-use std::io;
+use std::{io, mem, ptr, str};
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -26,20 +26,6 @@ fn main() {
   let memory = Rc::new(RefCell::new(Memory::new(gpu.clone())));
   let mut cpu = CPU::new(memory.clone());
 
-  loop {
-    // {
-    //   let mut memory = memory.borrow_mut();
-    //   if let Some(interrupt) = memory.current_interrupt {
-    //     memory.current_interrupt = None;
-    //     cpu.interrupt_queue.push_back(interrupt);
-    //   }
-    // }
-
-    cpu.step();
-    gpu.borrow_mut().step(cpu.last_clock.t);
-    memory.borrow_mut().step();
-  }
-
   let mut events_loop = glutin::EventsLoop::new();
   let window = glutin::WindowBuilder::new()
       .with_title("oh shit waddup")
@@ -50,18 +36,127 @@ fn main() {
 
   let gl_window = glutin::GlWindow::new(window, context, &events_loop).unwrap();
 
-  unsafe { gl_window.make_current().unwrap(); }
-
   unsafe {
+      gl_window.make_current().unwrap();
+
       gl::load_with(|symbol| gl_window.get_proc_address(symbol) as *const _);
-      gl::ClearColor(1.0, 1.0, 0.0, 1.0);
+      gl::ClearColor(1.0, 1.0, 1.0, 1.0);
+
+      let vs = gl::CreateShader(gl::VERTEX_SHADER);
+      gl::ShaderSource(
+        vs, 1,
+        [VERTEX_SHADER.as_ptr() as *const _].as_ptr(),
+        ptr::null()
+      );
+      gl::CompileShader(vs);
+
+      let fs = gl::CreateShader(gl::FRAGMENT_SHADER);
+      gl::ShaderSource(
+        fs, 1,
+        [FRAGMENT_SHADER.as_ptr() as *const _].as_ptr(),
+        ptr::null()
+      );
+      gl::CompileShader(fs);
+
+      let program = gl::CreateProgram();
+      gl::AttachShader(program, vs);
+      gl::AttachShader(program, fs);
+      gl::LinkProgram(program);
+      gl::UseProgram(program);
+
+      let mut status = gl::FALSE as gl::types::GLint;
+      gl::GetProgramiv(program, gl::LINK_STATUS, &mut status);
+
+      // Fail on error
+      if status != (gl::TRUE as gl::types::GLint) {
+        let mut len: gl::types::GLint = 0;
+        gl::GetProgramiv(program, gl::INFO_LOG_LENGTH, &mut len);
+        let mut buf = Vec::with_capacity(len as usize);
+        buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
+        gl::GetProgramInfoLog(
+          program,
+          len,
+          ptr::null_mut(),
+          buf.as_mut_ptr() as *mut gl::types::GLchar,
+        );
+        panic!(
+          "{}",
+          str::from_utf8(&buf)
+            .ok()
+            .expect("ProgramInfoLog not valid utf8")
+        );
+      }
+
+      gl::DeleteShader(vs);
+      gl::DeleteShader(fs);
+
+      let mut vb = mem::uninitialized();
+      gl::GenBuffers(1, &mut vb);
+      gl::BindBuffer(gl::ARRAY_BUFFER, vb);
+      gl::BufferData(
+        gl::ARRAY_BUFFER,
+        (VERTEX_DATA.len() * mem::size_of::<f32>()) as gl::types::GLsizeiptr,
+        VERTEX_DATA.as_ptr() as *const _,
+        gl::STATIC_DRAW
+      );
+
+      let mut eb = mem::uninitialized();
+      gl::GenBuffers(1, &mut eb);
+      gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, eb);
+      gl::BufferData(
+        gl::ELEMENT_ARRAY_BUFFER,
+        (ELEMENT_DATA.len() * mem::size_of::<u32>()) as gl::types::GLsizeiptr,
+        ELEMENT_DATA.as_ptr() as *const _,
+        gl::STATIC_DRAW
+      );
+
+      gl::VertexAttribPointer(
+        0 as gl::types::GLuint, 2,
+        gl::FLOAT, gl::FALSE,
+        (2 * mem::size_of::<f32>()) as gl::types::GLsizei,
+        ptr::null()
+      );
+
+      gl::EnableVertexAttribArray(0 as gl::types::GLuint);
+
+      let texture = (0..=(160 * 144 * 3))
+        .map(|it| (it % 255) as u8).collect::<Vec<u8>>();
+      let mut tex = mem::uninitialized();
+      gl::GenTextures(1, &mut tex);
+      gl::BindTexture(gl::TEXTURE_2D, tex);
+      gl::TexImage2D(
+        gl::TEXTURE_2D, 0,
+        gl::RGB as _, 160, 144,
+        0, gl::RGB, gl::UNSIGNED_BYTE,
+        texture.as_ptr() as *const _
+      );
+
+      gl::TexParameteri(
+        gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER,
+        gl::LINEAR as _
+      );
+      gl::TexParameteri(
+        gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER,
+        gl::LINEAR as _
+      );
   }
 
   let mut running = true;
-  'main: loop {
+  while running {
     events_loop.poll_events(|event| {
       match event {
         glutin::Event::WindowEvent { event, .. } => match event {
+          glutin::WindowEvent::KeyboardInput { input, .. } => {
+            if let Some(keycode) = input.virtual_keycode {
+              use glutin::VirtualKeyCode;
+
+              match keycode {
+                VirtualKeyCode::Escape => running = false,
+                _ => {},
+              };
+            }
+          },
+
           glutin::WindowEvent::CloseRequested => running = false,
           glutin::WindowEvent::Resized(w, h) => gl_window.resize(w, h),
           _ => {},
@@ -71,9 +166,77 @@ fn main() {
     });
 
 
-    unsafe { gl::Clear(gl::COLOR_BUFFER_BIT); }
-    gl_window.swap_buffers().unwrap();
+    unsafe {
+      gl::Clear(gl::COLOR_BUFFER_BIT);
 
-    if !running { break 'main; }
+      gl::ActiveTexture(gl::TEXTURE0);
+      gl::DrawElements(
+        gl::TRIANGLES, 6,
+        gl::UNSIGNED_INT,
+        ptr::null()
+      );
+    }
+
+    gl_window.swap_buffers().unwrap();
+  }
+
+  // loop {
+    // {
+    //   let mut memory = memory.borrow_mut();
+    //   if let Some(interrupt) = memory.current_interrupt {
+    //     memory.current_interrupt = None;
+    //     cpu.interrupt_queue.push_back(interrupt);
+    //   }
+    // }
+
+  //   cpu.step();
+  //   gpu.borrow_mut().step(cpu.last_clock.t);
+  //   memory.borrow_mut().step();
+  // }
+
+}
+
+static VERTEX_DATA: [f32; 8] = [
+  0.9, 0.9,
+  0.9, -0.9,
+  -0.9, -0.9,
+  -0.9, 0.9
+];
+
+static ELEMENT_DATA: [u32; 6] = [
+  0, 1, 3,
+  1, 2, 3
+];
+
+static VERTEX_SHADER: &'static [u8] = b"
+#version 330 core
+layout (location = 0) in vec2 pos;
+
+out vec2 tex_coords;
+
+void main() {
+  gl_Position = vec4(pos, 0.0, 1.0);
+  int tex_pos = gl_VertexID % 4;
+
+  if (tex_pos == 0) {
+      tex_coords = vec2(1.0, 1.0);
+  } else if (tex_pos == 1) {
+      tex_coords = vec2(1.0, 0.0);
+  } else if (tex_pos == 2) {
+      tex_coords = vec2(0.0, 0.0);
+  } else {
+      tex_coords = vec2(1.0, 0.0);
   }
 }
+";
+
+static FRAGMENT_SHADER: &'static [u8] = b"
+#version 330 core
+out vec4 color;
+uniform sampler2D tex;
+in vec2 tex_coords;
+
+void main() {
+  color = texture(tex, tex_coords);
+} 
+";
