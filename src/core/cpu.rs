@@ -1,7 +1,6 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use std::io;
 use std::collections::VecDeque;
 
 use super::registers::{Registers, ByteRegister, WordRegister, Flag};
@@ -23,7 +22,7 @@ pub enum InterruptHandler {
 
 pub struct CPU {
   clock: Clock,
-  registers: Registers,
+  pub registers: Registers,
 
   pub interrupt_queue: VecDeque<Interrupt>,
 
@@ -31,8 +30,6 @@ pub struct CPU {
   interrupts_enabled_after_next: bool,
   in_standby: bool,
   should_power_down: bool,
-
-  should_step: bool,
 
   // clock for last instruction
   // TODO: should this be here or in the registers?
@@ -56,15 +53,12 @@ impl CPU {
       interrupts_enabled_after_next: false,
       in_standby: false,
       should_power_down: false,
-      should_step: false,
       memory_interface,
       last_clock,
     }
   }
 
   pub fn step(&mut self) {
-    let pc = self.registers.read_word(WordRegister::PC);
-
     if let Some(interrupt) = self.interrupt_queue.pop_front() {
       let isr = match interrupt {
         Interrupt::VBlank => InterruptHandler::VBlank as u8,
@@ -678,33 +672,8 @@ impl CPU {
       _ => println!("unknown instruction: {:#04X}", instruction),
     };
 
-    match pc {
-      0x0003 => println!("zeroing vram"),
-      0x000C => println!("setting up audio"),
-      0x001D => println!("setting up bg palette"),
-      0x0021 => println!("loading logo data into vram"),
-      0x0034 => println!("load 8 more bytes into vram"),
-      0x0040 => println!("setup background tilemap"),
-      0x0055 => println!("logo start!"),
-      0x0080 => println!("playing sound"),
-
-      0x00E0 => println!("doing logo check"),
-
-      0x00FE => {
-        println!("done");
-        self.should_step = true;
-      },
-
-      _ => {},
-    };
-
     self.clock.m += self.last_clock.m;
     self.clock.t += self.last_clock.t;
-
-    if self.should_step {
-      println!("ran instruction {:#04X} at {:#04X}", instruction, pc);
-      io::stdin().read_line(&mut String::new()).expect("err");
-    }
   }
 
   // ------------------------------------

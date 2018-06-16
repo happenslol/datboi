@@ -7,6 +7,7 @@ extern crate glutin;
 use std::io;
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::u16;
 
 mod core;
 mod mmu;
@@ -15,10 +16,16 @@ mod gpu;
 mod gl_context;
 
 use gpu::Gpu;
-use mmu::Memory;
+use mmu::{Memory, MemoryInterface};
 use core::cpu::{CPU, InterruptHandler};
+use core::registers::WordRegister;
+use core::instructions::{OPCODES, BIT_OPCODES};
 
 use gl_context::{GlContext, Event};
+
+use std::thread;
+use std::time::Duration;
+use std::io::prelude::*;
 
 fn main() {
   // TODO: Find another way to let the CPU access the mmu
@@ -27,23 +34,19 @@ fn main() {
   let memory = Rc::new(RefCell::new(Memory::new(gpu.clone())));
   let mut cpu = CPU::new(memory.clone());
 
-  let mut texture = (0..=(160 * 144 * 3))
-    .map(|it| (it % 255) as u8).collect::<Vec<u8>>();
-
-  let mut acc = 0;
+  let mut texture = (0..=(256 * 256 * 3))
+    .map(|it| 255u8).collect::<Vec<u8>>();
 
   let mut ctx = GlContext::new();
+
+  let mut should_step = true;
+  let mut break_at = 0x00;
 
   'main: loop {
     for event in ctx.next_events() {
       match event {
         Event::KeyEvent(scancode) => match scancode {
           1 => break 'main,
-          57 => {
-            acc += 1;
-
-            texture = texture.iter().map(|it| it.wrapping_add(acc)).collect::<Vec<u8>>();
-          },
           it => println!("{}", it),
         },
 
@@ -53,10 +56,6 @@ fn main() {
       };
     }
 
-    ctx.render_frame(&texture);
-  }
-
-  // loop {
     // {
     //   let mut memory = memory.borrow_mut();
     //   if let Some(interrupt) = memory.current_interrupt {
@@ -65,9 +64,75 @@ fn main() {
     //   }
     // }
 
-  //   cpu.step();
-  //   gpu.borrow_mut().step(cpu.last_clock.t);
-  //   memory.borrow_mut().step();
-  // }
+    let mut steps = 70_224i32;
 
+    while steps > 0 {
+      let current = cpu.registers.read_word(WordRegister::PC);
+
+      if should_step || current == break_at {
+        println!("breaking at {:#04X}", current);
+        let op = memory.borrow().read_byte(current);
+        if op == 0xCB {
+          let bitop = memory.borrow().read_byte(current + 1);
+          println!("next instruction: {}", BIT_OPCODES[bitop as usize]);
+        } else {
+          println!("next instruction: {}", OPCODES[op as usize]);
+        }
+
+        'debug: loop {
+          print!(">> ");
+          io::stdout().flush().expect("couldn't flush");
+          let mut input = String::new();
+          io::stdin().read_line(&mut input).ok().expect("couldn't read in");
+
+          match input.trim() {
+            "c" | "cont" | "continue" | "" => {
+              should_step = false;
+              break_at = 0x00;
+              break 'debug;
+            },
+            "r" | "regs" | "registers" => {
+              println!("showing registers");
+            },
+            "n" | "next" => {
+              should_step = true;
+              break_at = 0x00;
+              break 'debug;
+            },
+            "x" | "exit" => {
+              break 'main;
+            },
+            it => {
+              if it.starts_with("break ") {
+                let parts = it.split("0x")
+                  .map(|it| String::from(it))
+                  .collect::<Vec<String>>();
+
+                let num = u16::from_str_radix(&parts[1], 16)
+                  .expect(&format!("invalid hex value: {}", parts[1]));
+                break_at = num;
+                should_step = false;
+
+                println!("will break at {:#04X}", num);
+
+                break 'debug;
+              } else {
+                println!("unknown command: {}", it)
+              }
+            },
+          };
+        }
+      }
+
+      cpu.step();
+      gpu.borrow_mut().step(cpu.last_clock.t);
+      memory.borrow_mut().step();
+
+      steps -= cpu.last_clock.t as i32;
+    }
+
+    thread::sleep(Duration::from_millis(20));
+    gpu.borrow().render_to_texture(&mut texture);
+    ctx.render_frame(&texture);
+  }
 }

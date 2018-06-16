@@ -3,6 +3,9 @@ use std::cell::RefCell;
 
 use ::gpu::Gpu;
 
+use std::fs::File;
+use std::io::prelude::*;
+
 mod bootrom;
 
 pub trait MemoryInterface {
@@ -37,8 +40,17 @@ pub struct Memory {
 }
 
 impl Memory {
+  pub fn load_rom(&mut self) {
+    let mut rom = File::open("../tetris.gb").expect("rom not found");
+    let mut buf = Vec::new();
+    let read = rom.read_to_end(&mut buf);
+    println!("read {:?} bytes", read);
+
+    self.ram = buf;
+  }
+
   pub fn new(gpu: Rc<RefCell<Gpu>>) -> Memory {
-    let ram = (0..=0x2000).map(|_| 0x00).collect::<Vec<u8>>();
+    let mut ram = (0..=0x2000).map(|_| 0x00).collect::<Vec<u8>>();
     let zero_page = (0..=0x7F).map(|_| 0x00).collect::<Vec<u8>>();
 
     Memory {
@@ -212,7 +224,10 @@ impl MemoryInterface for Memory {
       },
 
       // register for unmapping the bootrom
-      0xFF50 => println!("bootrom unmapped!"),
+      0xFF50 => {
+        self.in_bios = false;
+        self.load_rom();
+      },
 
       // zero page memory
       0xFF80...0xFFFE => self.zero_page[address - 0xFF80] = value,

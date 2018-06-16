@@ -3,6 +3,9 @@ use ::glutin;
 use ::glutin::GlContext as GlutinContext;
 use ::gl;
 
+const WIDTH: u32 = 128;
+const HEIGHT: u32 = 256;
+
 pub struct GlContext {
   events_loop: glutin::EventsLoop,
   window: glutin::GlWindow,
@@ -19,12 +22,13 @@ impl GlContext {
     let mut events_loop = glutin::EventsLoop::new();
     let window = glutin::WindowBuilder::new()
         .with_title("oh shit waddup")
-        .with_dimensions(400, 400);
+        .with_dimensions(WIDTH * 3, HEIGHT * 3);
 
     let context = glutin::ContextBuilder::new()
         .with_vsync(true);
 
-    let gl_window = glutin::GlWindow::new(window, context, &events_loop).unwrap();
+    let gl_window = glutin::GlWindow::new(window, context, &events_loop)
+      .expect("failed to make gl window");
 
     unsafe {
       gl_window.make_current().expect("failed to make context current");
@@ -109,7 +113,7 @@ impl GlContext {
 
       gl::EnableVertexAttribArray(0 as gl::types::GLuint);
 
-      let texture = (0..=(160 * 144 * 3))
+      let texture = (0..=(WIDTH * HEIGHT * 3))
         .map(|it| 100u8).collect::<Vec<u8>>();
 
       let mut tex = mem::uninitialized();
@@ -117,7 +121,7 @@ impl GlContext {
       gl::BindTexture(gl::TEXTURE_2D, tex);
       gl::TexImage2D(
         gl::TEXTURE_2D, 0,
-        gl::RGB as _, 160, 144,
+        gl::RGB as _, WIDTH as _, HEIGHT as _,
         0, gl::RGB, gl::UNSIGNED_BYTE,
         texture.as_ptr() as *const _
       );
@@ -126,11 +130,11 @@ impl GlContext {
 
       gl::TexParameteri(
         gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER,
-        gl::LINEAR as _
+        gl::NEAREST as _
       );
       gl::TexParameteri(
         gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER,
-        gl::LINEAR as _
+        gl::NEAREST as _
       );
     }
 
@@ -160,6 +164,7 @@ impl GlContext {
     });
 
     if let Some((w, h)) = resize {
+      unsafe { gl::Viewport(0, 0, w as _, h as _); }
       self.window.resize(w, h);
     }
 
@@ -172,7 +177,7 @@ impl GlContext {
 
       gl::TexSubImage2D(
         gl::TEXTURE_2D, 0, 0, 0,
-        160, 144, gl::RGB as _,
+        WIDTH as _, HEIGHT as _, gl::RGB as _,
         gl::UNSIGNED_BYTE,
         data.as_ptr() as *const _
       );
@@ -193,19 +198,24 @@ static VERTEX_SHADER: &'static [u8] = b"
 layout (location = 0) in vec2 pos;
 
 out vec2 tex_coords;
+out vec3 test_color;
 
 void main() {
   gl_Position = vec4(pos, 0.0, 1.0);
   int tex_pos = gl_VertexID % 4;
 
   if (tex_pos == 0) {
-      tex_coords = vec2(1.0, 1.0);
+      tex_coords = vec2(1.0, 0.0);
+      test_color = vec3(1.0, 0.0, 0.0);
   } else if (tex_pos == 1) {
-      tex_coords = vec2(1.0, 0.0);
+      tex_coords = vec2(1.0, 1.0);
+      test_color = vec3(0.0, 1.0, 0.0);
   } else if (tex_pos == 2) {
-      tex_coords = vec2(0.0, 0.0);
+      tex_coords = vec2(0.0, 1.0);
+      test_color = vec3(0.0, 0.0, 1.0);
   } else {
-      tex_coords = vec2(1.0, 0.0);
+      tex_coords = vec2(0.0, 0.0);
+      test_color = vec3(1.0, 1.0, 1.0);
   }
 }
 ";
@@ -214,9 +224,12 @@ static FRAGMENT_SHADER: &'static [u8] = b"
 #version 330 core
 out vec4 color;
 uniform sampler2D tex;
+
 in vec2 tex_coords;
+in vec3 test_color;
 
 void main() {
+  // color = vec4(test_color, 1.0);
   color = texture(tex, tex_coords);
 } 
 ";
