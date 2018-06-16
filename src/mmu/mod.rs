@@ -226,7 +226,6 @@ impl MemoryInterface for Memory {
       // register for unmapping the bootrom
       0xFF50 => {
         self.in_bios = false;
-        self.load_rom();
       },
 
       // zero page memory

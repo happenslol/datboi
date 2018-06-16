@@ -34,6 +34,8 @@ fn main() {
   let memory = Rc::new(RefCell::new(Memory::new(gpu.clone())));
   let mut cpu = CPU::new(memory.clone());
 
+  memory.borrow_mut().load_rom();
+
   let mut texture = (0..=(256 * 256 * 3))
     .map(|it| 255u8).collect::<Vec<u8>>();
 
@@ -132,7 +134,7 @@ fn main() {
     }
 
     thread::sleep(Duration::from_millis(20));
-    gpu.borrow().render_to_texture(&mut texture);
+    gpu.borrow().render_vram_to_texture(&mut texture);
     ctx.render_frame(&texture);
   }
 }

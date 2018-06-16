@@ -54,7 +54,7 @@ impl Gpu {
     }
   }
 
-  pub fn render_to_texture(&self, texture: &mut Vec<u8>) {
+  pub fn render_vram_to_texture(&self, texture: &mut Vec<u8>) {
     // let mut tile = (0..(8 * 2)).map(|_| 0u8).collect::<Vec<u8>>();
 
     // tile[1] |= 0x7E;
