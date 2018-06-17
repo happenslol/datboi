@@ -43,6 +43,7 @@ impl GlContext {
         ptr::null()
       );
       gl::CompileShader(vs);
+      panic_if_error_shader(vs);
 
       let fs = gl::CreateShader(gl::FRAGMENT_SHADER);
       gl::ShaderSource(
@@ -51,6 +52,7 @@ impl GlContext {
         ptr::null()
       );
       gl::CompileShader(fs);
+      panic_if_error_shader(fs);
 
       let program = gl::CreateProgram();
       gl::AttachShader(program, vs);
@@ -58,28 +60,7 @@ impl GlContext {
       gl::LinkProgram(program);
       gl::UseProgram(program);
 
-      let mut status = gl::FALSE as gl::types::GLint;
-      gl::GetProgramiv(program, gl::LINK_STATUS, &mut status);
-
-      // Fail on error
-      if status != (gl::TRUE as gl::types::GLint) {
-        let mut len: gl::types::GLint = 0;
-        gl::GetProgramiv(program, gl::INFO_LOG_LENGTH, &mut len);
-        let mut buf = Vec::with_capacity(len as usize);
-        buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
-        gl::GetProgramInfoLog(
-          program,
-          len,
-          ptr::null_mut(),
-          buf.as_mut_ptr() as *mut gl::types::GLchar,
-        );
-        panic!(
-          "{}",
-          str::from_utf8(&buf)
-            .ok()
-            .expect("ProgramInfoLog not valid utf8")
-        );
-      }
+      panic_if_error_program(program);
 
       gl::DeleteShader(vs);
       gl::DeleteShader(fs);
@@ -193,12 +174,69 @@ impl GlContext {
   }
 }
 
-static VERTEX_SHADER: &'static [u8] = b"
-#version 330 core
+fn panic_if_error_shader(shader: gl::types::GLuint) {
+  unsafe {
+    let mut status = gl::FALSE as gl::types::GLint;
+    gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut status);
+
+    // Fail on error
+    if status != (gl::TRUE as gl::types::GLint) {
+      let mut len: gl::types::GLint = 0;
+      gl::GetShaderiv(shader, gl::INFO_LOG_LENGTH, &mut len);
+      let mut buf = Vec::with_capacity(len as usize);
+      buf.set_len((len as usize) - 1);
+      gl::GetShaderInfoLog(
+        shader,
+        len,
+        ptr::null_mut(),
+        buf.as_mut_ptr() as *mut gl::types::GLchar,
+      );
+
+      gl::DeleteShader(shader);
+
+      panic!(
+        "{}",
+        str::from_utf8(&buf)
+          .ok()
+          .expect("ShaderInfoLog not valid utf8")
+      );
+    }
+
+  }
+}
+
+fn panic_if_error_program(program: gl::types::GLuint) {
+  unsafe {
+    let mut status = gl::FALSE as gl::types::GLint;
+    gl::GetProgramiv(program, gl::LINK_STATUS, &mut status);
+
+    // Fail on error
+    if status != (gl::TRUE as gl::types::GLint) {
+      let mut len: gl::types::GLint = 0;
+      gl::GetProgramiv(program, gl::INFO_LOG_LENGTH, &mut len);
+      let mut buf = Vec::with_capacity(len as usize);
+      buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
+      gl::GetProgramInfoLog(
+        program,
+        len,
+        ptr::null_mut(),
+        buf.as_mut_ptr() as *mut gl::types::GLchar,
+      );
+
+      panic!(
+        "{}",
+        str::from_utf8(&buf)
+          .ok()
+          .expect("ProgramInfoLog not valid utf8")
+      );
+    }
+  }
+}
+
+static VERTEX_SHADER: &'static [u8] = b"#version 330 core
 layout (location = 0) in vec2 pos;
 
 out vec2 tex_coords;
-out vec3 test_color;
 
 void main() {
   gl_Position = vec4(pos, 0.0, 1.0);
@@ -206,30 +244,23 @@ void main() {
 
   if (tex_pos == 0) {
       tex_coords = vec2(1.0, 0.0);
-      test_color = vec3(1.0, 0.0, 0.0);
   } else if (tex_pos == 1) {
       tex_coords = vec2(1.0, 1.0);
-      test_color = vec3(0.0, 1.0, 0.0);
   } else if (tex_pos == 2) {
       tex_coords = vec2(0.0, 1.0);
-      test_color = vec3(0.0, 0.0, 1.0);
   } else {
       tex_coords = vec2(0.0, 0.0);
-      test_color = vec3(1.0, 1.0, 1.0);
   }
 }
 ";
 
-static FRAGMENT_SHADER: &'static [u8] = b"
-#version 330 core
+static FRAGMENT_SHADER: &'static [u8] = b"#version 330 core
 out vec4 color;
 uniform sampler2D tex;
 
 in vec2 tex_coords;
-in vec3 test_color;
 
 void main() {
-  // color = vec4(test_color, 1.0);
   color = texture(tex, tex_coords);
 } 
 ";
