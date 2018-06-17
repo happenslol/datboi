@@ -3,7 +3,7 @@ use ::glutin;
 use ::glutin::GlContext as GlutinContext;
 use ::gl;
 
-const WIDTH: u32 = 128;
+const WIDTH: u32 = 256;
 const HEIGHT: u32 = 256;
 
 pub struct GlContext {

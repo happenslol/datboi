@@ -66,7 +66,8 @@ fn main() {
     //   }
     // }
 
-    let mut steps = 70_224i32;
+    // let mut steps = 70_224i32;
+    let mut steps = 100i32;
 
     while steps > 0 {
       let current = cpu.registers.read_word(WordRegister::PC);
@@ -104,6 +105,22 @@ fn main() {
             "x" | "exit" => {
               break 'main;
             },
+
+            "bgmap" => {
+              println!("printing bg map data");
+              let range = (0x9800..=0x9BFF).collect::<Vec<u16>>();
+              for (row_index, row) in range.chunks(32).enumerate() {
+                print!("line {} - ", row_index);
+                for i in row {
+                  let byte = memory.borrow().read_byte(*i);
+                  print!("{} ", byte);
+                  io::stdout().flush().expect("couldn't flush");
+                }
+                print!("\n");
+                io::stdout().flush().expect("couldn't flush");
+              }
+            },
+
             it => {
               if it.starts_with("break ") {
                 let parts = it.split("0x")
@@ -130,11 +147,14 @@ fn main() {
       gpu.borrow_mut().step(cpu.last_clock.t);
       memory.borrow_mut().step();
 
+      if gpu.borrow().enabled {
+        gpu.borrow().render_screen_to_texture(&mut texture);
+        ctx.render_frame(&texture);
+      }
+
       steps -= cpu.last_clock.t as i32;
     }
 
-    thread::sleep(Duration::from_millis(20));
-    gpu.borrow().render_vram_to_texture(&mut texture);
-    ctx.render_frame(&texture);
+    thread::sleep(Duration::from_millis(10));
   }
 }
